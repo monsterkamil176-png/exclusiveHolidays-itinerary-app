@@ -5,8 +5,12 @@ import pandas as pd
 from io import BytesIO
 from docx import Document 
 
-# 1. Page Config
-st.set_page_config(page_title="Exclusive Holidays SL", layout="wide")
+# 1. Page Config - Set the icon to an Airplane for the browser tab
+st.set_page_config(
+    page_title="Exclusive Holidays SL", 
+    page_icon="✈️", 
+    layout="wide"
+)
 
 # HELPER: Converts image to base64
 def get_base64(bin_file):
@@ -16,10 +20,11 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. Styling (Optimized for space and Mobile)
+# 2. Styling (Optimized for Space, Mobile, and Appearance)
 st.markdown("""
     <style>
     header {visibility: hidden;}
+    
     /* Removes the massive gap at the very top of the page */
     .main .block-container {padding-top: 0rem; padding-bottom: 2rem;}
     
@@ -32,7 +37,7 @@ st.markdown("""
     
     .main-container {
         background-color: rgba(255, 255, 255, 0.95); 
-        padding: 20px; 
+        padding: 25px; 
         border-radius: 20px;
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
         max-width: 900px;
@@ -40,6 +45,7 @@ st.markdown("""
         margin-top: -10px; /* Pulls the white box higher */
     }
 
+    /* BOLD WHITE TEXT FOR BUTTONS */
     button, .stButton > button {
         background-color: #0056b3 !important;
         border: 2px solid #0056b3 !important;
@@ -53,11 +59,20 @@ st.markdown("""
         font-size: 16px !important;
     }
 
-    /* Mobile specific tweaks to save space */
+    .itinerary-card {
+        background-color: #ffffff; 
+        padding: 20px; 
+        border-radius: 15px; 
+        margin-bottom: 15px;
+        border-left: 6px solid #0056b3; 
+        box-shadow: 0px 4px 15px rgba(0,0,0,0.05);
+    }
+
+    /* MOBILE ADJUSTMENTS */
     @media (max-width: 768px) {
         .main-container { padding: 15px; margin-top: 0px; }
-        .logo-img { width: 160px !important; }
-        h1 { font-size: 20px !important; margin-top: 0px !important; }
+        .logo-img { width: 180px !important; }
+        h1 { font-size: 22px !important; margin-top: 0px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -68,6 +83,7 @@ if 'itinerary' not in st.session_state:
 if 'tour_title' not in st.session_state:
     st.session_state.tour_title = ""
 
+# CALLBACK FUNCTION TO CLEAR FIELDS SAFELY
 def add_day_callback():
     if st.session_state.route_input:
         activities_list = []
@@ -95,14 +111,14 @@ def add_day_callback():
             if f"act_input_{i}" in st.session_state:
                 st.session_state[f"act_input_{i}"] = ""
 
-# 4. Logo (Top Middle - Tightened Space)
+# 4. Logo (Top Middle - Unfrozen and Transparent)
 logo_path = "logo.png"
 logo_base64 = get_base64(logo_path)
 if logo_base64:
     st.markdown(f"""
-        <div style="text-align: center; margin-top: -20px; padding-bottom: 10px;">
+        <div style="text-align: center; margin-top: -20px; padding-bottom: 15px;">
             <img class="logo-img" src="data:image/png;base64,{logo_base64}" 
-                 style="width: 220px; opacity: 0.7; transition: 0.3s;"
+                 style="width: 240px; opacity: 0.7; transition: 0.3s;"
                  onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
         </div>
     """, unsafe_allow_html=True)
@@ -190,8 +206,3 @@ if st.session_state.itinerary:
         st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
-
-
-
-
-
