@@ -20,7 +20,14 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. Styling (Optimized for Space, Mobile, and Appearance)
+# 2. HIDDEN PREVIEW IMAGE FOR LINK SHARING
+# This is invisible to users (1px size) but helps WhatsApp/FB pick up a thumbnail.
+st.markdown("""
+    <img src="https://images.unsplash.com/photo-1546760653-c949758949f8?q=80&w=1280&h=640&auto=format&fit=crop" 
+         style="display: block; width: 1px; height: 1px; opacity: 0;">
+""", unsafe_allow_html=True)
+
+# 3. Styling (Optimized for Space, Mobile, and Appearance)
 st.markdown("""
     <style>
     header {visibility: hidden;}
@@ -42,7 +49,7 @@ st.markdown("""
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
         max-width: 900px;
         margin: auto;
-        margin-top: -10px; /* Pulls the white box higher */
+        margin-top: -10px;
     }
 
     /* BOLD WHITE TEXT FOR BUTTONS */
@@ -77,7 +84,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Initialize Session States
+# 4. Initialize Session States
 if 'itinerary' not in st.session_state:
     st.session_state.itinerary = []
 if 'tour_title' not in st.session_state:
@@ -111,7 +118,7 @@ def add_day_callback():
             if f"act_input_{i}" in st.session_state:
                 st.session_state[f"act_input_{i}"] = ""
 
-# 4. Logo (Top Middle - Unfrozen and Transparent)
+# 5. Logo (Top Middle - Unfrozen and Transparent)
 logo_path = "logo.png"
 logo_base64 = get_base64(logo_path)
 if logo_base64:
@@ -123,7 +130,7 @@ if logo_base64:
         </div>
     """, unsafe_allow_html=True)
 
-# 5. Content Wrapper
+# 6. Content Wrapper
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
 
 st.title("✈️ Exclusive Holidays SL")
@@ -133,7 +140,7 @@ if st.session_state.itinerary:
     total_days = len(st.session_state.itinerary)
     st.info(f"📅 Current Plan: {total_days} Days / {total_days - 1 if total_days > 0 else 0} Nights")
 
-# 6. Input Section
+# 7. Input Section
 st.markdown("### 📝 Build Your Journey")
 st.session_state.tour_title = st.text_input("📍 Tour Title / Client Name", value=st.session_state.tour_title, placeholder="e.g. Johnson Family")
 
@@ -151,13 +158,12 @@ st.text_area("Place Description", key="desc_input", placeholder="Describe the de
 
 st.button("➕ Add Day to Tour", use_container_width=True, on_click=add_day_callback)
 
-# 7. Exports
+# 8. Exports
 if st.session_state.itinerary:
     st.divider()
     st.markdown("### 📥 Download Documents")
     display_title = st.session_state.tour_title if st.session_state.tour_title else "Itinerary"
     
-    # Word Export Logic
     def create_word(data, title):
         doc = Document()
         doc.add_heading(title, 0) 
@@ -174,7 +180,6 @@ if st.session_state.itinerary:
     with col_dl1:
         st.download_button("📝 Word Document", data=create_word(st.session_state.itinerary, display_title), file_name=f"{display_title}.docx", use_container_width=True)
     with col_dl2:
-        # Excel Logic
         df = pd.DataFrame(st.session_state.itinerary)
         df.insert(0, 'Day', range(1, 1 + len(df)))
         excel_out = BytesIO()
@@ -182,7 +187,7 @@ if st.session_state.itinerary:
             df.to_excel(writer, index=False, sheet_name="Itinerary") 
         st.download_button("📊 Excel Sheet", data=excel_out.getvalue(), file_name=f"{display_title}.xlsx", use_container_width=True)
 
-# 8. Itinerary Display
+# 9. Itinerary Display
 st.divider()
 for i, item in enumerate(st.session_state.itinerary):
     with st.container():
