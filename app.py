@@ -1,3 +1,9 @@
+# 1. Page Config (Update this for a better tab appearance)
+st.set_page_config(
+    page_title="Exclusive Holidays SL", 
+    page_icon="✈️", # This shows an airplane in the browser tab
+    layout="wide"
+
 import streamlit as st
 import os
 import base64
@@ -190,6 +196,7 @@ if st.session_state.itinerary:
         st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
+
 
 
 
