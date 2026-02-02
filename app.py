@@ -96,12 +96,28 @@ def add_day_callback():
             if f"act_input_{i}" in st.session_state:
                 st.session_state[f"act_input_{i}"] = ""
 
-# 4. Logo
+# 4. Logo (Updated for Size and Transparency)
 logo_path = "logo.png"
 logo_base64 = get_base64(logo_path)
 if logo_base64:
-    st.markdown(f'<div style="position:fixed; top:10px; right:20px; z-index:9999;"><img src="data:image/png;base64,{logo_base64}" width="160"></div>', unsafe_allow_html=True)
-
+    st.markdown(f"""
+        <div style="
+            position: fixed; 
+            top: 15px; 
+            right: 25px; 
+            z-index: 9999;
+            transition: opacity 0.3s ease;
+        ">
+            <img src="data:image/png;base64,{logo_base64}" 
+                 style="
+                    width: 220px; 
+                    opacity: 0.7; 
+                    filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.1));
+                 "
+                 onmouseover="this.style.opacity='1'" 
+                 onmouseout="this.style.opacity='0.7'">
+        </div>
+    """, unsafe_allow_html=True)
 # 5. Content Wrapper
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
 st.title("✈️ Exclusive Holidays SL")
@@ -188,5 +204,6 @@ if st.session_state.itinerary:
             if st.button("❌", key=f"del_{i}"):
                 st.session_state.itinerary.pop(i)
                 st.rerun()
+
 
 st.markdown('</div>', unsafe_allow_html=True)
