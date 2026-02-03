@@ -1,9 +1,3 @@
-You are absolutely right. Since we did a full rewrite to fix the layout and the password logic, the export functions were left out. I have now integrated the Word (.docx) and Excel (.xlsx) export features back into the builder.
-
-🚀 Final Full Code with All Features
-This version includes the Status logic (asks for password only once), the CSS Ghost Box fix, the Branding (Logo/Motto) on both pages, and the Export buttons.
-
-Python
 import streamlit as st
 import os
 import base64
@@ -56,7 +50,7 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. THE CSS FIX: Branding, Placeholders, and Ghost Box Removal
+# 2. CSS Styling
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
 
 st.markdown(f"""
@@ -65,7 +59,6 @@ st.markdown(f"""
         background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("{bg_img}");
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
-    /* HIDE GHOST BOX */
     div[data-testid="stVerticalBlock"] > div:has(> div:empty) {{ display: none !important; }}
     [data-testid="stVerticalBlock"] {{ background-color: transparent !important; }}
     
@@ -182,7 +175,6 @@ else:
         st.markdown("---")
         df_itin = pd.DataFrame(st.session_state.itinerary)
         
-        # EXPORT BUTTONS
         ex1, ex2 = st.columns(2)
         with ex1:
             st.download_button("📥 Export to Excel", data=to_excel(df_itin), file_name=f"{tour_title}.xlsx")
