@@ -23,24 +23,12 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
-if "display_name" not in st.session_state:
-    st.session_state.display_name = ""
 if "itinerary" not in st.session_state:
     st.session_state.itinerary = []
 if "form_reset" not in st.session_state:
     st.session_state.form_reset = 0
 
-# ================= HELPERS =================
-def clean_strict(text):
-    """Prevents PDF crashes by removing emojis and non-standard symbols."""
-    if not text: return ""
-    return re.sub(r'[^a-zA-Z0-9\s\.,\-\(\):/!\?]', '', str(text))
-
-def clean_filename(text):
-    if not text: return "itinerary"
-    return re.sub(r"[^A-Za-z0-9_-]+", "_", text).strip("_")
-
-# ================= EXPORT LOGIC =================
+# ================= EXPORT ENGINES =================
 def create_pdf(title, itinerary):
     pdf = FPDF()
     pdf.add_page()
@@ -50,14 +38,11 @@ def create_pdf(title, itinerary):
     pdf.cell(0, 5, "Unforgettable Island Adventures Awaits", 0, 1, "C")
     pdf.ln(10)
     pdf.set_font("Courier", "B", 14)
-    pdf.cell(0, 10, f"Itinerary: {clean_strict(title)}", 0, 1)
+    pdf.cell(0, 10, f"Itinerary: {title}", 0, 1)
     for i, day in enumerate(itinerary):
         pdf.set_font("Courier", "B", 12)
-        pdf.cell(0, 10, clean_strict(f"Day {i+1}: {day['Route']}"), 1, 1)
-        pdf.set_font("Courier", "I", 10)
-        pdf.cell(0, 7, clean_strict(f"{day['Distance']} | {day['Time']}"), 0, 1)
-        pdf.set_font("Courier", "", 11)
-        pdf.multi_cell(0, 7, clean_strict(day['Description']))
+        pdf.cell(0, 10, f"Day {i+1}: {day['Route']}", 1, 1)
+        pdf.multi_cell(0, 7, day['Description'])
         pdf.ln(5)
     return bytes(pdf.output(dest='S'))
 
@@ -65,10 +50,8 @@ def create_word(title, itinerary):
     doc = Document()
     doc.add_heading("EXCLUSIVE HOLIDAYS SRI LANKA", 0)
     doc.add_paragraph("Unforgettable Island Adventures Awaits").italic = True
-    doc.add_heading(f"Itinerary: {title}", level=1)
     for i, day in enumerate(itinerary):
-        doc.add_heading(f"Day {i+1}: {day['Route']}", level=2)
-        doc.add_paragraph(f"{day['Distance']} | {day['Time']}")
+        doc.add_heading(f"Day {i+1}: {day['Route']}", level=1)
         doc.add_paragraph(day['Description'])
     bio = BytesIO()
     doc.save(bio)
@@ -79,126 +62,125 @@ bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=25
 st.markdown(f"""
 <style>
 [data-testid="stAppViewContainer"] {{
-    background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{bg_img}");
+    background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url("{bg_img}");
     background-size: cover; background-position: center; background-attachment: fixed;
 }}
-input::placeholder, textarea::placeholder {{
-    color: #000000 !important; opacity: 1 !important; font-weight: bold !important;
-}}
-.stTextInput input, .stTextArea textarea {{ background-color: #ffffff !important; color: #000000 !important; }}
-.branding-container {{ text-align: center; color: white; padding: 20px; text-shadow: 2px 2px 4px black; }}
+.stTextInput input, .stTextArea textarea {{ background-color: white !important; color: black !important; font-weight: bold !important; }}
+input::placeholder {{ color: #222 !important; opacity: 1 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-# ================= BRANDING HEADER =================
-def render_header():
-    st.markdown("<div class='branding-container'><h1>EXCLUSIVE HOLIDAYS SRI LANKA</h1>"
-                "<h3 style='color: #FFD700; font-style: italic;'>\"Unforgettable Island Adventures Awaits\"</h3></div>", 
-                unsafe_allow_html=True)
+# ================= BRANDING (Motto & Logo) =================
+def show_branding():
+    st.markdown("<h1 style='text-align:center; color:white; text-shadow:2px 2px 4px black; margin-bottom:0;'>EXCLUSIVE HOLIDAYS SRI LANKA</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#FFD700; font-style:italic; font-size:1.3rem; margin-top:0;'>\"Unforgettable Island Adventures Awaits\"</p>", unsafe_allow_html=True)
+    
+    # Global Logo Upload (Visible to everyone)
+    with st.expander("🖼️ COMPANY LOGO SETTINGS", expanded=False):
+        logo_file = st.file_uploader("Upload your Company Logo here", type=["png", "jpg", "jpeg"])
+        if logo_file:
+            st.image(logo_file, width=150)
 
 # ================= LOGIN =================
 if not st.session_state.authenticated:
-    render_header()
+    show_branding()
     _, col, _ = st.columns([1, 2, 1])
     with col:
-        with st.form("login_form"):
+        with st.form("login"):
             u = st.text_input("Username")
             p = st.text_input("Password", type="password")
             if st.form_submit_button("Login"):
                 db = load_user_db()
-                user_match = db[(db["username"] == u) & (db["password"].astype(str) == p)]
-                if not user_match.empty:
+                user = db[(db["username"] == u) & (db["password"].astype(str) == p)]
+                if not user.empty:
                     st.session_state.authenticated = True
                     st.session_state.user_role = "Admin" if u.lower() in ["admin", "admin01"] else "Staff"
-                    st.session_state.display_name = u.split('.')[0].capitalize()
                     st.rerun()
-                else: st.error("Invalid credentials")
+                else: st.error("Invalid Login")
     st.stop()
 
-# ================= APP CONTENT =================
-render_header()
-c1, c2 = st.columns([8, 2])
-with c1: st.write(f"### Hello, {st.session_state.display_name}!")
-with c2: 
-    if st.button("Logout & Reset"):
-        st.session_state.clear()
-        st.rerun()
+# ================= MAIN APP =================
+show_branding()
+st.sidebar.button("Logout", on_click=lambda: st.session_state.clear())
 
-# --- GLOBAL LOGO UPLOADER ---
-with st.sidebar:
-    st.write("### 📁 Global Settings")
-    logo = st.file_uploader("Upload Company Logo", type=["png", "jpg"])
-    if logo: st.image(logo, width=150)
-
-# --- ADMIN VIEW ---
+# --- 🛠️ ADMIN PANEL (Add, Remove, Change Password) ---
 if st.session_state.user_role == "Admin":
-    st.markdown("---")
-    st.subheader("🛠️ Admin Panel")
+    st.header("🛠️ Admin Control Center")
     
-    with st.container(border=True):
-        st.write("#### Register New Staff Member")
-        new_u = st.text_input("Username", placeholder="e.g. kamil.c")
-        new_p = st.text_input("Password", type="password")
-        if st.button("Save User"):
-            if new_u and new_p:
-                df = load_user_db()
-                new_row = pd.DataFrame([{"username": new_u, "password": new_p, "status": "New"}])
-                updated_df = pd.concat([df, new_row], ignore_index=True)
-                conn.update(worksheet="Sheet1", data=updated_df)
-                st.success("User added successfully!")
-                st.rerun()
+    tabs = st.tabs(["➕ Add User", "❌ Remove User", "🔑 Change Password", "📊 User Database"])
     
-    st.write("#### User Database")
-    st.dataframe(load_user_db(), use_container_width=True)
+    with tabs[0]:
+        st.write("### Add New Staff member")
+        with st.form("add_user"):
+            nu = st.text_input("New Username")
+            np = st.text_input("New Password", type="password")
+            if st.form_submit_button("Save User"):
+                db = load_user_db()
+                updated = pd.concat([db, pd.DataFrame([{"username": nu, "password": np, "status": "Active"}])], ignore_index=True)
+                conn.update(worksheet="Sheet1", data=updated)
+                st.success(f"User {nu} added!")
 
-# --- STAFF VIEW ---
-else:
-    st.markdown("---")
-    st.subheader("✈️ Itinerary Builder")
-    
-    it_name = st.text_input("Itinerary Name", placeholder="Relax on Beach – 10 Days")
-    
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1: r = st.text_input("Route", placeholder="Airport - Negombo", key=f"r_{st.session_state.form_reset}")
-    with col2: d = st.text_input("Distance", placeholder="10KM", key=f"d_{st.session_state.form_reset}")
-    with col3: t = st.text_input("Duration", placeholder="30 Minutes", key=f"t_{st.session_state.form_reset}")
-    
-    num_a = st.selectbox("How many activities?", range(0, 11))
-    acts = []
-    for i in range(num_a):
-        a_val = st.text_input(f"Activity {i+1}", placeholder="Relaxing on beach", key=f"a_{st.session_state.form_reset}_{i}")
-        if a_val: acts.append(f"✓ {a_val}") # Added Checkmark
-    
-    desc = st.text_area("Description", placeholder="Negombo is a bustling city...", key=f"desc_{st.session_state.form_reset}")
-    
-    if st.button("➕ Add Day"):
-        if r:
-            full_d = ("Activities: " + " • ".join(acts) + "\n\n" if acts else "") + desc
-            st.session_state.itinerary.append({"Route": r, "Distance": d, "Time": t, "Description": full_d})
-            st.session_state.form_reset += 1
+    with tabs[1]:
+        st.write("### Remove User")
+        db = load_user_db()
+        user_to_del = st.selectbox("Select user to remove", db["username"].tolist())
+        if st.button("Confirm Delete"):
+            updated = db[db["username"] != user_to_del]
+            conn.update(worksheet="Sheet1", data=updated)
+            st.warning(f"User {user_to_del} removed!")
             st.rerun()
 
-    if st.session_state.itinerary:
-        st.markdown("---")
-        fn = clean_filename(it_name)
-        b1, b2, b3 = st.columns(3)
-        with b1:
-            csv = pd.DataFrame(st.session_state.itinerary).to_csv(index=False).encode('utf-8')
-            st.download_button("📊 Excel", csv, f"{fn}.csv")
-        with b2:
-            word_file = create_word(it_name, st.session_state.itinerary)
-            st.download_button("📝 Word", word_file, f"{fn}.docx")
-        with b3:
-            try:
-                pdf_file = create_pdf(it_name, st.session_state.itinerary)
-                st.download_button("📄 PDF", pdf_file, f"{fn}.pdf", mime="application/pdf")
-            except Exception as e:
-                st.error(f"Error: {e}")
+    with tabs[2]:
+        st.write("### Reset User Password")
+        user_to_change = st.selectbox("Select user", db["username"].tolist(), key="pass_reset")
+        new_pass = st.text_input("Enter New Password", type="password")
+        if st.button("Update Password"):
+            db.loc[db["username"] == user_to_change, "password"] = new_pass
+            conn.update(worksheet="Sheet1", data=db)
+            st.success(f"Password for {user_to_change} updated!")
 
-        for i, item in enumerate(st.session_state.itinerary):
-            with st.expander(f"Day {i+1}: {item['Route']}", expanded=True):
-                st.write(f"**{item['Distance']} | {item['Time']}**")
-                st.write(item['Description'])
-                if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
+    with tabs[3]:
+        st.dataframe(load_user_db(), use_container_width=True)
+
+# --- ✈️ STAFF PANEL (Itinerary Builder) ---
+else:
+    st.header("✈️ Itinerary Builder")
+    it_name = st.text_input("Itinerary Name", placeholder="Relax on Beach – 10 Days")
+    
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1: r = st.text_input("Route", placeholder="Airport - Negombo", key=f"r_{st.session_state.form_reset}")
+    with c2: d = st.text_input("Distance", placeholder="10KM", key=f"d_{st.session_state.form_reset}")
+    with c3: t = st.text_input("Duration", placeholder="30 Minutes", key=f"t_{st.session_state.form_reset}")
+    
+    # Check Mark Activities
+    num_a = st.selectbox("Number of Activities", range(0, 11))
+    acts = []
+    for i in range(num_a):
+        av = st.text_input(f"Activity {i+1}", key=f"act_{i}_{st.session_state.form_reset}")
+        if av: acts.append(f"✓ {av}")
+    
+    desc = st.text_area("Description", placeholder="Enter details here...", key=f"desc_{st.session_state.form_reset}")
+    
+    if st.button("➕ Add Day"):
+        activity_str = "\n".join(acts) + "\n\n" if acts else ""
+        st.session_state.itinerary.append({"Route": r, "Description": f"{d} | {t}\n{activity_str}{desc}"})
+        st.session_state.form_reset += 1
+        st.rerun()
+
+    if st.session_state.itinerary:
+        st.write("---")
+        # ACTUAL DOWNLOAD BUTTONS
+        col_ex, col_word, col_pdf = st.columns(3)
+        with col_ex:
+            st.download_button("📊 Excel", pd.DataFrame(st.session_state.itinerary).to_csv(index=False).encode('utf-8'), "itinerary.csv")
+        with col_word:
+            st.download_button("📝 Word", create_word(it_name, st.session_state.itinerary), "itinerary.docx")
+        with col_pdf:
+            st.download_button("📄 PDF", create_pdf(it_name, st.session_state.itinerary), "itinerary.pdf", mime="application/pdf")
+        
+        for i, day in enumerate(st.session_state.itinerary):
+            with st.expander(f"Day {i+1}: {day['Route']}", expanded=True):
+                st.write(day['Description'])
+                if st.button(f"Remove Day {i+1}", key=f"del_{i}"):
                     st.session_state.itinerary.pop(i)
                     st.rerun()
