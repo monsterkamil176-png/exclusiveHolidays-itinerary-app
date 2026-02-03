@@ -41,6 +41,10 @@ if 'itinerary' not in st.session_state:
     st.session_state.itinerary = []
 if 'needs_password_change' not in st.session_state:
     st.session_state.needs_password_change = False
+if 'admin_form_key' not in st.session_state:
+    st.session_state.admin_form_key = 0
+if 'builder_form_key' not in st.session_state:
+    st.session_state.builder_form_key = 0
 
 def get_base64(bin_file):
     if os.path.exists(bin_file):
@@ -149,46 +153,43 @@ if st.session_state.current_user == "admin01":
     st.markdown("### 👨‍💼 Admin Panel")
     tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
     with tab1:
-        # We use keys here so we can reset them
-        new_u = st.text_input("New Username", key="new_user_input")
-        new_p = st.text_input("Temp Password", type="password", key="new_pass_input")
-        if st.button("Register Account"):
-            if new_u and new_p:
-                add_user_to_db(new_u, new_p)
-                st.success(f"Added {new_u}!")
-                # CLEAR FIELDS: This resets the inputs
-                st.session_state.new_user_input = ""
-                st.session_state.new_pass_input = ""
-                st.rerun()
+        # Wrap in a container with a dynamic key to clear inputs
+        with st.container(border=False):
+            new_u = st.text_input("New Username", key=f"user_{st.session_state.admin_form_key}")
+            new_p = st.text_input("Temp Password", type="password", key=f"pass_{st.session_state.admin_form_key}")
+            if st.button("Register Account"):
+                if new_u and new_p:
+                    add_user_to_db(new_u, new_p)
+                    st.success(f"Added {new_u}!")
+                    # Increment counter to force clear the fields
+                    st.session_state.admin_form_key += 1
+                    st.rerun()
 
 else:
     st.markdown("### ✈️ Itinerary Builder")
-    # Added "key" to allow clearing
-    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Smith Family - 7 Days", key="tour_title_input")
-    
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo", key="route_input")
-    with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM", key="dist_input")
-    with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr", key="time_input")
-    desc_in = st.text_area("Description", key="desc_input")
-    
-    col_add, col_clear = st.columns([1, 1])
-    with col_add:
-        if st.button("➕ Add Day"):
-            if r_in:
-                st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
-                # Optional: Clear day-specific fields after adding
-                st.session_state.route_input = ""
-                st.session_state.dist_input = ""
-                st.session_state.time_input = ""
-                st.session_state.desc_input = ""
+    # Wrap builder in container with dynamic key
+    with st.container(border=False):
+        tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Smith Family - 7 Days", key="tour_title_fix")
+        
+        c1, c2, c3 = st.columns([2, 1, 1])
+        with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo", key=f"route_{st.session_state.builder_form_key}")
+        with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM", key=f"dist_{st.session_state.builder_form_key}")
+        with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr", key=f"time_{st.session_state.builder_form_key}")
+        desc_in = st.text_area("Description", key=f"desc_{st.session_state.builder_form_key}")
+        
+        col_add, col_clear = st.columns([1, 1])
+        with col_add:
+            if st.button("➕ Add Day"):
+                if r_in:
+                    st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
+                    # Increment counter to clear ONLY the day fields
+                    st.session_state.builder_form_key += 1
+                    st.rerun()
+        
+        with col_clear:
+            if st.button("🗑️ Clear All"):
+                st.session_state.itinerary = []
                 st.rerun()
-    
-    with col_clear:
-        if st.button("🗑️ Clear All"):
-            st.session_state.itinerary = []
-            st.session_state.tour_title_input = ""
-            st.rerun()
 
     if st.session_state.itinerary:
         st.markdown("---")
