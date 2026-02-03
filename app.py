@@ -49,39 +49,47 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. THE CSS FIX: Restores content but removes the ghost box
+# 2. THE CSS FIX: Visible buttons and no ghost boxes
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
 
 st.markdown(f"""
     <style>
     /* Set the background image */
     [data-testid="stAppViewContainer"] {{
-        background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), 
+        background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), 
                     url("{bg_img}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }}
 
-    /* This targets and removes that white rounded ghost box you circled */
+    /* Remove the ghost box you circled */
     [data-testid="stVerticalBlock"] > div {{
         background-color: transparent !important;
         border: none !important;
         box-shadow: none !important;
     }}
     
-    /* Keep the actual input fields visible and readable */
+    /* BUTTON TEXT FIX: Make button text dark and bold */
+    .stButton > button {{
+        color: #1e1e1e !important;
+        font-weight: 700 !important;
+        background-color: #f0f2f6 !important; /* Light grey button */
+        border: 1px solid #d1d1d1 !important;
+    }}
+
+    /* Input fields visibility */
     .stTextInput input, .stTextArea textarea {{
         background-color: white !important;
         color: black !important;
     }}
 
-    /* Make text white so it shows over the beach background */
-    h1, h2, h3, p, label, .stMarkdown {{
+    /* Main headings stay white for the background */
+    h1, h2, h3, p, label {{
         color: white !important;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
     }}
 
-    /* Hide the top streamlit bar */
     [data-testid="stHeader"], [data-testid="stDecoration"] {{
         background-color: rgba(0,0,0,0) !important;
     }}
@@ -95,13 +103,9 @@ st.markdown(f"""
 if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
-        # Logo rendering
         logo_base64 = get_base64("logo.png")
         if logo_base64:
             st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="200"></div>', unsafe_allow_html=True)
-        else:
-            # Fallback if logo file is missing
-            st.markdown('<h1 style="text-align: center;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
         
         st.markdown('<h2 style="text-align: center;">Welcome Back</h2>', unsafe_allow_html=True)
         with st.form("login_form"):
@@ -123,10 +127,9 @@ if not st.session_state.authenticated:
                         st.error("Invalid Credentials")
     st.stop()
 
-# --- PHASE 2: FORCE PASSWORD CHANGE ---
+# --- PHASE 2: PASSWORD CHANGE ---
 if st.session_state.needs_password_change:
     st.markdown("## 🔒 Security Update")
-    st.write("Please change your password to continue.")
     with st.form("pw_form"):
         new_p = st.text_input("New Password", type="password")
         conf_p = st.text_input("Confirm New Password", type="password")
@@ -136,18 +139,16 @@ if st.session_state.needs_password_change:
                 st.session_state.needs_password_change = False
                 st.rerun()
             else:
-                st.error("Passwords must match (min 4 chars).")
+                st.error("Passwords must match.")
     st.stop()
 
 # --- PHASE 3: MAIN APP CONTENT ---
-# Top bar for logout
-t_col1, t_col2 = st.columns([9, 1])
+t_col1, t_col2 = st.columns([9, 1.2])
 with t_col2:
     if st.button("Logout"):
         st.session_state.authenticated = False
         st.rerun()
 
-# ADMIN PANEL
 if st.session_state.current_user == "admin01":
     st.markdown("# 👨‍💼 Admin Panel")
     tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
@@ -157,40 +158,26 @@ if st.session_state.current_user == "admin01":
         if st.button("Register Account"):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
-                st.success(f"Account for {new_u} created!")
-    with tab2:
-        df_u = load_user_db()
-        if df_u is not None:
-            others = df_u[df_u['username'] != 'admin01']['username'].tolist()
-            if others:
-                u_to_del = st.selectbox("Select user to remove", others)
-                if st.button("Delete Forever", type="primary"):
-                    up_df = df_u[df_u['username'] != u_to_del]
-                    conn.update(worksheet="Sheet1", data=up_df)
-                    st.cache_data.clear()
-                    st.rerun()
-
-# STAFF BUILDER
+                st.success(f"Success! {new_u} added.")
 else:
-    st.markdown("# ✈️ Exclusive Holidays Itinerary Builder")
+    st.markdown("# ✈️ Itinerary Builder")
     tour_title = st.text_input("Tour Title / Client Name")
     
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: r_in = st.text_input("Route", placeholder="e.g. Airport to Negombo")
-    with c2: d_in = st.text_input("Distance", placeholder="e.g. 35 KM")
-    with c3: t_in = st.text_input("Time", placeholder="e.g. 45 Mins")
-    desc_in = st.text_area("Description", placeholder="Enter highlights...")
+    with c1: r_in = st.text_input("Route")
+    with c2: d_in = st.text_input("Distance")
+    with c3: t_in = st.text_input("Time")
+    desc_in = st.text_area("Description")
     
-    if st.button("➕ Add Day to Itinerary"):
+    if st.button("➕ Add Day"):
         if r_in:
             st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
             st.rerun()
 
     if st.session_state.itinerary:
-        st.write("---")
+        st.markdown("---")
         for i, item in enumerate(st.session_state.itinerary):
             st.markdown(f"### Day {i+1}: {item['Route']}")
-            st.write(f"**{item['Distance']} | {item['Time']}**")
             st.write(item['Description'])
             if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
                 st.session_state.itinerary.pop(i)
