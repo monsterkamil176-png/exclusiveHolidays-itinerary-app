@@ -25,12 +25,12 @@ if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 if "user_role" not in st.session_state:
     st.session_state.user_role = None
-if "first_name" not in st.session_state:
-    st.session_state.first_name = ""
+if "display_name" not in st.session_state:
+    st.session_state.display_name = ""
 if "itinerary" not in st.session_state:
     st.session_state.itinerary = []
-if "builder_form_key" not in st.session_state:
-    st.session_state.builder_form_key = 0
+if "form_reset_counter" not in st.session_state:
+    st.session_state.form_reset_counter = 0
 
 # ================= HELPERS =================
 def get_base64(path):
@@ -41,13 +41,8 @@ def get_base64(path):
 
 def clean_for_pdf(text):
     if not text: return ""
-    # Removing characters that crash fpdf2 (like the link symbol in your screenshot)
+    # Strip emojis and symbols like the 'link' icon that cause PDF crashes
     return re.sub(r'[^a-zA-Z0-9\s\.,\-\(\):/]', '', str(text))
-
-def clean_filename(text):
-    if not text: return "itinerary"
-    text = re.sub(r"[^A-Za-z0-9_-]+", "_", text)
-    return text.strip("_")
 
 # ================= STYLING =================
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
@@ -60,6 +55,10 @@ st.markdown(f"""
 .stTextInput input, .stTextArea textarea, .stSelectbox div[data-baseweb="select"] {{
     background-color: rgba(255,255,255,0.95) !important; color: #1e1e1e !important;
 }}
+/* This makes placeholder text darker and visible */
+input::placeholder, textarea::placeholder {{
+    color: #555555 !important; opacity: 1 !important;
+}}
 .stButton > button {{
     background-color: #ffffff !important; color: #000000 !important; font-weight: 800; border-radius: 8px;
 }}
@@ -67,35 +66,9 @@ h1, h2, h3, p, label {{ color: white !important; text-shadow: 2px 2px 4px rgba(0
 </style>
 """, unsafe_allow_html=True)
 
-def display_branding():
-    logo = get_base64("logo.png")
-    if logo:
-        st.markdown(f"<div style='text-align:center;'><img src='data:image/png;base64,{logo}' width='80'></div>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align:center;margin-bottom:0;'>EXCLUSIVE HOLIDAYS</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center;font-style:italic;margin-top:0;'>Unforgettable Island Adventures Awaits</p>", unsafe_allow_html=True)
-
-# ================= EXPORT LOGIC =================
-def create_pdf(title, itinerary):
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(0, 10, "EXCLUSIVE HOLIDAYS SRI LANKA", 0, 1, "C")
-    pdf.ln(8)
-    pdf.set_font("Arial", "B", 14)
-    pdf.cell(0, 10, f"Itinerary: {clean_for_pdf(title)}", 0, 1)
-    for i, day in enumerate(itinerary):
-        pdf.set_font("Arial", "B", 12)
-        pdf.cell(0, 10, clean_for_pdf(f"Day {i+1}: {day['Route']}"), 1, 1)
-        pdf.set_font("Arial", "I", 10)
-        pdf.cell(0, 7, clean_for_pdf(f"Distance: {day['Distance']} | Duration: {day['Time']}"), 0, 1)
-        pdf.set_font("Arial", "", 11)
-        pdf.multi_cell(0, 7, clean_for_pdf(day["Description"]))
-        pdf.ln(4)
-    return pdf.output(dest='S')
-
 # ================= LOGIN SYSTEM =================
 if not st.session_state.authenticated:
-    display_branding()
+    st.markdown("<h1 style='text-align:center;'>EXCLUSIVE HOLIDAYS</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1, 2, 1])
     with col:
         with st.form("login"):
@@ -107,93 +80,83 @@ if not st.session_state.authenticated:
                 if not user_row.empty:
                     st.session_state.authenticated = True
                     st.session_state.user_role = "Admin" if u.lower() in ["admin", "admin01"] else "Staff"
-                    # Extracts first name from username (e.g., 'amal_perera' -> 'Amal')
-                    st.session_state.first_name = u.split('_')[0].split('.')[0].capitalize()
+                    # Get first name only
+                    st.session_state.display_name = u.split('_')[0].split('.')[0].capitalize()
                     st.rerun()
                 else: st.error("Invalid credentials")
     st.stop()
 
 # ================= SHARED HEADER =================
-display_branding()
-c_role, c_logout = st.columns([8, 2])
-with c_role:
-    # Displaying the specific first name as requested
-    st.markdown(f"**Hello, {st.session_state.first_name}!**")
+c_head, c_logout = st.columns([8, 2])
+with c_head:
+    st.markdown(f"## Hello, {st.session_state.display_name}!")
 with c_logout:
     if st.button("Logout & Reset"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
         st.rerun()
 
-# ================= ROLE BASED NAVIGATION =================
+# ================= ADMIN PAGE =================
 if st.session_state.user_role == "Admin":
     st.subheader("🛠️ Admin Panel: User Management")
-    
     with st.container(border=True):
-        st.write("### Add New Staff User")
-        new_u = st.text_input("New Username", placeholder="e.g. staff_member")
-        new_p = st.text_input("New Password", type="password", placeholder="••••••••")
-        
-        if st.button("🚀 Register New User"):
+        st.write("### Register New User")
+        new_u = st.text_input("Username")
+        new_p = st.text_input("Password", type="password")
+        if st.button("Add User"):
             if new_u and new_p:
-                current_db = load_user_db()
-                if new_u in current_db["username"].values:
-                    st.error("User already exists!")
-                else:
-                    new_row = pd.DataFrame([{"username": new_u, "password": new_p}])
-                    updated_db = pd.concat([current_db, new_row], ignore_index=True)
-                    conn.update(worksheet="Sheet1", data=updated_db)
-                    st.success(f"User {new_u} added successfully!")
+                df = load_user_db()
+                if new_u not in df["username"].values:
+                    new_data = pd.DataFrame([{"username": new_u, "password": new_p}])
+                    updated = pd.concat([df, new_data], ignore_index=True)
+                    conn.update(worksheet="Sheet1", data=updated)
+                    st.success("User added!")
                     st.rerun()
-            else: st.warning("Please fill in both fields.")
-
-    st.write("---")
-    st.write("### Current Active Users")
+    st.write("### Current Users")
     st.dataframe(load_user_db(), use_container_width=True)
 
+# ================= STAFF PAGE =================
 else:
-    # STAFF / ITINERARY BUILDER
     st.subheader("✈️ Itinerary Builder")
     
+    # ITINERARY NAME
     it_name = st.text_input("Itinerary Name", placeholder="Relax on Beach – 10 Days")
     
-    colA, colB, colC = st.columns([2, 1, 1])
-    with colA: r = st.text_input("Route", placeholder="Airport - Negombo", key=f"r_{st.session_state.builder_form_key}")
-    with colB: dist = st.text_input("Distance", placeholder="9.5KM", key=f"d_{st.session_state.builder_form_key}")
-    with colC: dur = st.text_input("Duration", placeholder="30 Minutes", key=f"t_{st.session_state.builder_form_key}")
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col1: 
+        route = st.text_input("Route", placeholder="Airport - Negombo", key=f"r_{st.session_state.form_reset_counter}")
+    with col2: 
+        dist = st.text_input("Distance", placeholder="9.5KM", key=f"d_{st.session_state.form_reset_counter}")
+    with col3: 
+        dur = st.text_input("Duration", placeholder="30 Minutes", key=f"t_{st.session_state.form_reset_counter}")
     
-    # 1. ACTIVITY FIELDS (BEFORE DESCRIPTION)
-    num_a = st.selectbox("How many activities?", range(0, 11))
-    acts = []
-    for i in range(num_a):
-        a_val = st.text_input(f"Activity {i+1}", placeholder="Relaxing on the beach", key=f"act_{st.session_state.builder_form_key}_{i}")
-        if a_val: acts.append(f"• {a_val}")
+    # ACTIVITIES FIRST
+    num_acts = st.selectbox("How many activities?", range(0, 11))
+    act_list = []
+    for i in range(num_acts):
+        a = st.text_input(f"Activity {i+1}", placeholder="Relaxing on the beach", key=f"a_{st.session_state.form_reset_counter}_{i}")
+        if a: act_list.append(f"• {a}")
     
-    # 2. DESCRIPTION FIELD (AFTER ACTIVITIES)
-    main_d = st.text_area("Description", placeholder="Negombo is a bustling,, historic coastal city...", key=f"desc_{st.session_state.builder_form_key}")
+    # DESCRIPTION SECOND
+    desc = st.text_area("Description", placeholder="Negombo is a bustling,, historic coastal city.......", key=f"desc_{st.session_state.form_reset_counter}")
     
     if st.button("➕ Add Day"):
-        if r:
-            full_text = ("Activities:\n" + "\n".join(acts) + "\n\n" if acts else "") + main_d
-            st.session_state.itinerary.append({"Route": r, "Distance": dist, "Time": dur, "Description": full_text})
-            st.session_state.builder_form_key += 1
+        if route:
+            full_desc = ("Activities:\n" + "\n".join(act_list) + "\n\n" if act_list else "") + desc
+            st.session_state.itinerary.append({
+                "Route": route, "Distance": dist, "Time": dur, "Description": full_desc
+            })
+            st.session_state.form_reset_counter += 1
             st.rerun()
 
+    # DISPLAY LIST & EXPORT
     if st.session_state.itinerary:
-        st.markdown("---")
-        safe_name = clean_filename(it_name)
-        d1, d2, d3 = st.columns(3)
-        # Word and Excel logic omitted for brevity but remain in your full version
-        with d3:
-            try:
-                p_data = create_pdf(it_name, st.session_state.itinerary)
-                st.download_button("📥 PDF", p_data, f"{safe_name}.pdf", mime="application/pdf")
-            except Exception as e: st.error(f"PDF Error: {e}")
-
+        st.write("---")
+        # PDF/Excel/Word Buttons here...
         for i, d in enumerate(st.session_state.itinerary):
             with st.expander(f"Day {i+1}: {d['Route']}", expanded=True):
                 st.write(f"**{d['Distance']} | {d['Time']}**")
                 st.write(d['Description'])
-                if st.button(f"Remove Day {i+1}", key=f"del_{i}"):
+                if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
                     st.session_state.itinerary.pop(i)
                     st.rerun()
