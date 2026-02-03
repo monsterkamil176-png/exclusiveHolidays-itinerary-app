@@ -60,6 +60,12 @@ def display_branding():
     st.markdown('<h1 style="text-align: center; font-size: 28px; margin-bottom:0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; font-style: italic; margin-top:0;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
 
+# --- PDF TEXT CLEANER (Fixes the Encoding Error) ---
+def safe_text(text):
+    """Removes emojis and special symbols that crash FPDF"""
+    if not text: return ""
+    return text.encode('latin-1', 'replace').decode('latin-1').replace('?', '')
+
 # --- EXPORTS ---
 def to_excel(df):
     output = BytesIO()
@@ -84,33 +90,29 @@ def create_pdf(title, itinerary):
     pdf.cell(0, 10, 'EXCLUSIVE HOLIDAYS SRI LANKA', 0, 1, 'C')
     pdf.ln(10)
     
-    # Cleaning the title and description of non-latin characters to prevent crash
-    clean_title = title.encode('latin-1', 'replace').decode('latin-1')
     pdf.set_font('helvetica', 'B', 14)
-    pdf.cell(0, 10, f'Trip Plan: {clean_title}', 0, 1, 'L')
+    pdf.cell(0, 10, f'Trip Plan: {safe_text(title)}', 0, 1, 'L')
     
     for i, day in enumerate(itinerary):
         pdf.set_font('helvetica', 'B', 12)
-        clean_route = day["Route"].encode('latin-1', 'replace').decode('latin-1')
-        pdf.cell(0, 10, f'Day {i+1}: {clean_route}', 1, 1, 'L')
-        
+        pdf.cell(0, 10, f'Day {i+1}: {safe_text(day["Route"])}', 1, 1, 'L')
         pdf.set_font('helvetica', '', 11)
-        clean_desc = day['Description'].encode('latin-1', 'replace').decode('latin-1')
-        pdf.multi_cell(0, 7, clean_desc)
+        pdf.multi_cell(0, 7, safe_text(day['Description']))
         pdf.ln(5)
     return pdf.output()
 
 # --- MAIN APP UI ---
 if not st.session_state.authenticated:
-    # (Put your login logic here - for now assuming authenticated)
+    # (Put your login logic here - assuming True for now)
     st.session_state.authenticated = True 
 
+# Branding
 display_branding()
 
-# --- LOGOUT BUTTON (TOP RIGHT) ---
-col_main, col_logout = st.columns([9, 1])
+# --- LOGOUT BUTTON (FIXED POSITION) ---
+col_spacer, col_logout = st.columns([9, 1])
 with col_logout:
-    if st.button("Logout"):
+    if st.button("Logout", key="top_logout"):
         st.session_state.authenticated = False
         st.rerun()
 
@@ -120,9 +122,9 @@ with tab_build:
     tour_title = st.text_input("Client Name", placeholder="e.g. Smith Family", key="title_main")
     
     colA, colB, colC = st.columns([2, 1, 1])
-    with colA: r_in = st.text_input("Route", placeholder="Negombo -> Kandy", key=f"r_{st.session_state.builder_form_key}")
-    with colB: d_in = st.text_input("Distance", placeholder="120 KM", key=f"d_{st.session_state.builder_form_key}")
-    with colC: t_in = st.text_input("Time", placeholder="3 Hrs", key=f"t_{st.session_state.builder_form_key}")
+    with colA: r_in = st.text_input("Route", placeholder="Airport -> Negombo", key=f"r_{st.session_state.builder_form_key}")
+    with colB: d_in = st.text_input("Distance", placeholder="9 KM", key=f"d_{st.session_state.builder_form_key}")
+    with colC: t_in = st.text_input("Time", placeholder="20 Mins", key=f"t_{st.session_state.builder_form_key}")
     
     desc_box = st.text_area("General Description", placeholder="Enter highlights...", key=f"desc_{st.session_state.builder_form_key}")
     
@@ -142,29 +144,32 @@ with tab_build:
                 st.session_state.builder_form_key += 1
                 st.rerun()
     with btn_col2:
-        if st.button("🗑️ Clear All Itinerary"):
+        if st.button("🗑️ Clear All"):
             st.session_state.itinerary = []
             st.rerun()
 
     if st.session_state.itinerary:
         st.markdown("---")
-        # --- EXPORT BUTTONS ---
+        # --- EXPORT BUTTONS (FIXED EXCEL & PDF) ---
         e1, e2, e3 = st.columns(3)
         with e1:
             df_export = pd.DataFrame(st.session_state.itinerary)
-            st.download_button("📥 Excel", data=to_excel(df_export), file_name=f"{tour_title}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("📥 Excel", data=to_excel(df_export), file_name=f"{tour_title}.xlsx")
         with e2:
             st.download_button("📥 Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
         with e3:
             try:
-                pdf_data = create_pdf(tour_title, st.session_state.itinerary)
-                st.download_button("📥 PDF", data=pdf_data, file_name=f"{tour_title}.pdf", mime="application/pdf")
+                pdf_bytes = create_pdf(tour_title, st.session_state.itinerary)
+                st.download_button("📥 PDF", data=pdf_bytes, file_name=f"{tour_title}.pdf", mime="application/pdf")
             except Exception as e:
-                st.error("Encoding error in PDF. Please remove any emojis or symbols.")
+                st.error("There is a character in your text that PDF cannot read. Please avoid emojis.")
 
+        # Display Summary
         for i, item in enumerate(st.session_state.itinerary):
-            st.markdown(f"### Day {i+1}: {item['Route']}")
-            st.write(item['Description'])
-            if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
-                st.session_state.itinerary.pop(i)
-                st.rerun()
+            with st.container():
+                st.markdown(f"### Day {i+1}: {item['Route']}")
+                st.write(item['Description'])
+                if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
+                    st.session_state.itinerary.pop(i)
+                    st.rerun()
+                st.markdown("---")
