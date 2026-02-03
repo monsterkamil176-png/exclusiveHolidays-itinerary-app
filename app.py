@@ -49,33 +49,39 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. Global Styling with Custom Background
+# 2. Global Styling with Sigiriya Background
 bg_image_url = "https://wowiwalkers.com/wp-content/uploads/2023/05/Sigiriya-Rock-Sri-Lanka-1.jpg"
 
 st.markdown(f"""
     <style>
-    /* Background Image Styling */
-    .stApp {{
-        background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), 
+    /* Force background on the root container */
+    [data-testid="stAppViewContainer"] {{
+        background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
                     url("{bg_image_url}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
     }}
 
+    /* Make intermediate layers transparent */
+    [data-testid="stHeader"], [data-testid="stCanvas"], .main {{
+        background-color: rgba(0,0,0,0) !important;
+    }}
+
     header {{visibility: hidden;}}
     
-    /* Center Card Styling */
+    /* Content Card Styling */
     .main-card {{
-        background-color: rgba(255, 255, 255, 0.95); 
+        background-color: rgba(255, 255, 255, 0.98); 
         padding: 40px; 
         border-radius: 20px; 
-        box-shadow: 0 10px 30px rgba(0,0,0,0.3); 
+        box-shadow: 0 10px 40px rgba(0,0,0,0.4); 
         max-width: 900px; 
         margin: auto;
+        color: #333;
     }}
     
-    .stButton > button {{
+    .stButton > button, .stForm submit_button > button {{
         background-color: #6495ED !important;
         color: white !important;
         border-radius: 8px !important;
@@ -86,18 +92,17 @@ st.markdown(f"""
     }}
 
     .itinerary-card {{
-        background-color: #f8f9fa; padding: 20px; border-radius: 12px; 
-        margin-bottom: 15px; border-left: 8px solid #6495ED; 
-    }}
-    
-    /* Input field adjustments */
-    .stTextInput input, .stTextArea textarea {{
-        border-radius: 8px !important;
+        background-color: #f8f9fa; 
+        padding: 20px; 
+        border-radius: 12px; 
+        margin-bottom: 15px; 
+        border-left: 8px solid #6495ED; 
+        color: #333;
     }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- PHASE 1: LOGIN (ENTER KEY ENABLED) ---
+# --- PHASE 1: LOGIN ---
 if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
@@ -105,15 +110,12 @@ if not st.session_state.authenticated:
         logo_base64 = get_base64("logo.png")
         if logo_base64:
             st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="180"></div>', unsafe_allow_html=True)
-        else:
-            st.markdown('<h1 style="text-align: center; color: #333;">Exclusive Holidays</h1>', unsafe_allow_html=True)
-            
-        st.markdown('<h3 style="text-align: center; color: #444; margin-bottom: 20px;">Welcome Back</h3>', unsafe_allow_html=True)
+        st.markdown('<h3 style="text-align: center; color: #444;">Sign In</h3>', unsafe_allow_html=True)
         
         with st.form("login_form", clear_on_submit=False):
             u_input = st.text_input("Username", placeholder="Username", label_visibility="collapsed")
             p_input = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
-            if st.form_submit_button("Sign In"):
+            if st.form_submit_button("Log In"):
                 df = load_user_db()
                 if df is not None:
                     user_row = df[df['username'] == u_input]
@@ -124,22 +126,23 @@ if not st.session_state.authenticated:
                             st.session_state.needs_password_change = True
                         st.rerun()
                     else:
-                        st.error("Invalid Credentials")
+                        st.error("Invalid Username or Password")
         st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 # --- PHASE 2: FORCE PASSWORD CHANGE ---
 if st.session_state.needs_password_change:
-    st.markdown('<div class="main-card" style="margin-top: 100px; max-width: 500px;">', unsafe_allow_html=True)
+    st.markdown('<div class="main-card" style="margin-top: 80px; max-width: 500px;">', unsafe_allow_html=True)
     st.subheader("🔒 Update Your Password")
-    st.info("First-time login: please update your password.")
+    st.info("New user security: Please change your password to continue.")
     with st.form("change_pass_form"):
         new_p = st.text_input("New Password", type="password")
         conf_p = st.text_input("Confirm New Password", type="password")
-        if st.form_submit_button("Save & Continue"):
+        if st.form_submit_button("Update & Proceed"):
             if new_p == conf_p and len(new_p) >= 4:
                 update_password_in_db(st.session_state.current_user, new_p)
                 st.session_state.needs_password_change = False
+                st.success("Success! Loading your workspace...")
                 st.rerun()
             else:
                 st.error("Passwords must match and be at least 4 characters.")
@@ -147,31 +150,31 @@ if st.session_state.needs_password_change:
     st.stop()
 
 # --- PHASE 3: MAIN APP CONTENT ---
-# Header Area
-top_l, top_r = st.columns([8, 1.5])
-with top_r:
-    if st.button("Logout"):
+# Top Header Bar
+t_col1, t_col2 = st.columns([8, 1.2])
+with t_col2:
+    if st.button("Logout", use_container_width=True):
         st.session_state.authenticated = False
         st.session_state.needs_password_change = False
         st.rerun()
 
-# --- ADMIN PANEL ---
+# ADMIN PANEL
 if st.session_state.current_user == "admin01":
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
     st.markdown('<h1 style="text-align: center; color: #333;">Staff Management</h1>', unsafe_allow_html=True)
     tab1, tab2 = st.tabs(["➕ Create Account", "🗑️ Remove Account"])
     with tab1:
-        new_u = st.text_input("New Staff Username")
-        new_p = st.text_input("Temporary Password", type="password")
-        if st.button("Register Staff"):
+        new_u = st.text_input("Username")
+        new_p = st.text_input("Temp Password", type="password")
+        if st.button("Add Staff"):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
-                st.success(f"Account '{new_u}' added!")
+                st.success(f"Account for {new_u} added to Google Sheet!")
     with tab2:
         df_u = load_user_db()
         others = df_u[df_u['username'] != 'admin01']['username'].tolist() if df_u is not None else []
         if others:
-            u_to_del = st.selectbox("Select account to remove", options=others)
+            u_to_del = st.selectbox("Select user to delete", options=others)
             if st.button("Delete Permanently", type="primary"):
                 up_df = df_u[df_u['username'] != u_to_del]
                 conn.update(worksheet="Sheet1", data=up_df)
@@ -179,13 +182,12 @@ if st.session_state.current_user == "admin01":
                 st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- STAFF BUILDER ---
+# STAFF BUILDER
 else:
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
     st.markdown('<h1 style="text-align: center; color: #333;">Itinerary Builder</h1>', unsafe_allow_html=True)
     
-    st.subheader("📝 Journey Details")
-    tour_title = st.text_input("Tour Title / Client Name")
+    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. 10 Days Luxury Tour")
     
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1: r_in = st.text_input("Route")
@@ -193,15 +195,43 @@ else:
     with c3: t_in = st.text_input("Time")
     desc_in = st.text_area("Description")
     
-    if st.button("➕ Add Day"):
+    if st.button("➕ Add Day to Itinerary", use_container_width=True):
         if r_in:
             st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
             st.rerun()
 
-    # Preview/Export logic remains the same...
     if st.session_state.itinerary:
         st.divider()
-        st.write("### Review & Export")
+        st.subheader("📥 Export & Review")
+        
+        # Word Export Logic
+        def create_word(data, title):
+            doc = Document()
+            doc.add_heading(title or "Itinerary", 0)
+            for i, day in enumerate(data):
+                doc.add_heading(f"Day {i+1}: {day['Route']}", level=1)
+                doc.add_paragraph(f"Distance: {day['Distance']} | Time: {day['Time']}")
+                doc.add_paragraph(day['Description'])
+            out = BytesIO()
+            doc.save(out)
+            return out.getvalue()
+
+        # Excel Export Logic
+        df_export = pd.DataFrame(st.session_state.itinerary)
+        excel_out = BytesIO()
+        with pd.ExcelWriter(excel_out, engine='xlsxwriter') as writer:
+            df_export.to_excel(writer, index=False, sheet_name="Itinerary")
+        
+        col_ex1, col_ex2 = st.columns(2)
+        with col_ex1:
+            st.download_button("📝 Download Word", data=create_word(st.session_state.itinerary, tour_title), file_name=f"{tour_title or 'Tour'}.docx")
+        with col_ex2:
+            st.download_button("📊 Download Excel", data=excel_out.getvalue(), file_name=f"{tour_title or 'Tour'}.xlsx")
+
+        st.divider()
         for i, item in enumerate(st.session_state.itinerary):
-            st.markdown(f'<div class="itinerary-card"><b>Day {i+1}: {item["Route"]}</b><br>{item["Description"]}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="itinerary-card"><b>Day {i+1}: {item["Route"]}</b><br>{item["Distance"]} | {item["Time"]}<br>{item["Description"]}</div>', unsafe_allow_html=True)
+            if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
+                st.session_state.itinerary.pop(i)
+                st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
