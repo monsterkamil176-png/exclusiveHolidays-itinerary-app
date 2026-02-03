@@ -1,4 +1,6 @@
 streamlit
 pandas
 xlsxwriter
+
 python-docx
+st-gsheets-connection
