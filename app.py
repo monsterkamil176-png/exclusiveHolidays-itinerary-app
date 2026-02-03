@@ -21,7 +21,6 @@ def load_user_db():
 
 def update_user_in_db(username, new_password):
     df = conn.read(worksheet="Sheet1", ttl=0)
-    # Updates password and sets status to Active
     df.loc[df['username'] == username, ['password', 'status']] = [str(new_password), "Active"]
     conn.update(worksheet="Sheet1", data=df)
     st.cache_data.clear()
@@ -150,25 +149,45 @@ if st.session_state.current_user == "admin01":
     st.markdown("### 👨‍💼 Admin Panel")
     tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
     with tab1:
-        new_u = st.text_input("New Username")
-        new_p = st.text_input("Temp Password", type="password")
+        # We use keys here so we can reset them
+        new_u = st.text_input("New Username", key="new_user_input")
+        new_p = st.text_input("Temp Password", type="password", key="new_pass_input")
         if st.button("Register Account"):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
                 st.success(f"Added {new_u}!")
+                # CLEAR FIELDS: This resets the inputs
+                st.session_state.new_user_input = ""
+                st.session_state.new_pass_input = ""
+                st.rerun()
+
 else:
     st.markdown("### ✈️ Itinerary Builder")
-    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Smith Family - 7 Days")
+    # Added "key" to allow clearing
+    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Smith Family - 7 Days", key="tour_title_input")
     
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo")
-    with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM")
-    with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr")
-    desc_in = st.text_area("Description")
+    with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo", key="route_input")
+    with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM", key="dist_input")
+    with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr", key="time_input")
+    desc_in = st.text_area("Description", key="desc_input")
     
-    if st.button("➕ Add Day"):
-        if r_in:
-            st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
+    col_add, col_clear = st.columns([1, 1])
+    with col_add:
+        if st.button("➕ Add Day"):
+            if r_in:
+                st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
+                # Optional: Clear day-specific fields after adding
+                st.session_state.route_input = ""
+                st.session_state.dist_input = ""
+                st.session_state.time_input = ""
+                st.session_state.desc_input = ""
+                st.rerun()
+    
+    with col_clear:
+        if st.button("🗑️ Clear All"):
+            st.session_state.itinerary = []
+            st.session_state.tour_title_input = ""
             st.rerun()
 
     if st.session_state.itinerary:
