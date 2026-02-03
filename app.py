@@ -5,12 +5,8 @@ import pandas as pd
 from io import BytesIO
 from docx import Document 
 
-# 1. Page Config - Set the icon to an Airplane for the browser tab
-st.set_page_config(
-    page_title="Exclusive Holidays SL", 
-    page_icon="✈️", 
-    layout="wide"
-)
+# 1. Page Config
+st.set_page_config(page_title="Exclusive Holidays SL", layout="wide")
 
 # HELPER: Converts image to base64
 def get_base64(bin_file):
@@ -20,20 +16,22 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. HIDDEN PREVIEW IMAGE FOR LINK SHARING
-# This is invisible to users (1px size) but helps WhatsApp/FB pick up a thumbnail.
-st.markdown("""
-    <img src="https://images.unsplash.com/photo-1546760653-c949758949f8?q=80&w=1280&h=640&auto=format&fit=crop" 
-         style="display: block; width: 1px; height: 1px; opacity: 0;">
-""", unsafe_allow_html=True)
+# --- NEW: LOGIN SYSTEM INITIALIZATION ---
+if 'user_db' not in st.session_state:
+    # Setting your specific admin credentials
+    st.session_state.user_db = {"admin01": "JklgHCnn#23"}
 
-# 3. Styling (Optimized for Space, Mobile, and Appearance)
+if 'authenticated' not in st.session_state:
+    st.session_state.authenticated = False
+
+if 'current_user' not in st.session_state:
+    st.session_state.current_user = None
+
+# 2. Styling (Your original CSS preserved)
 st.markdown("""
     <style>
     header {visibility: hidden;}
-    
-    /* Removes the massive gap at the very top of the page */
-    .main .block-container {padding-top: 0rem; padding-bottom: 2rem;}
+    .main .block-container {padding-top: 1rem; padding-bottom: 2rem;}
     
     .stApp {
         background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), 
@@ -49,7 +47,6 @@ st.markdown("""
         box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
         max-width: 900px;
         margin: auto;
-        margin-top: -10px;
     }
 
     /* BOLD WHITE TEXT FOR BUTTONS */
@@ -77,20 +74,56 @@ st.markdown("""
 
     /* MOBILE ADJUSTMENTS */
     @media (max-width: 768px) {
-        .main-container { padding: 15px; margin-top: 0px; }
+        .main-container { padding: 15px; }
         .logo-img { width: 180px !important; }
-        h1 { font-size: 22px !important; margin-top: 0px !important; }
+        h1 { font-size: 22px !important; }
     }
     </style>
     """, unsafe_allow_html=True)
 
-# 4. Initialize Session States
+# --- LOGIN SCREEN LOGIC ---
+if not st.session_state.authenticated:
+    st.markdown('<div class="main-container" style="max-width:400px; margin-top:50px;">', unsafe_allow_html=True)
+    st.title("🔒 Login")
+    user_input = st.text_input("Username")
+    pass_input = st.text_input("Password", type="password")
+    if st.button("Sign In", use_container_width=True):
+        if user_input in st.session_state.user_db and st.session_state.user_db[user_input] == pass_input:
+            st.session_state.authenticated = True
+            st.session_state.current_user = user_input
+            st.rerun()
+        else:
+            st.error("Invalid credentials")
+    st.markdown('</div>', unsafe_allow_html=True)
+    st.stop() # Stops the rest of the app from loading until login
+
+# --- MAIN AUTHENTICATED APP ---
+with st.sidebar:
+    st.write(f"Logged in as: **{st.session_state.current_user}**")
+    if st.button("Logout"):
+        st.session_state.authenticated = False
+        st.rerun()
+    
+    # ADMIN PANEL: Only visible to admin01
+    if st.session_state.current_user == "admin01":
+        st.divider()
+        st.subheader("🛠️ Admin Panel")
+        with st.expander("Create New User"):
+            new_u = st.text_input("New Username")
+            new_p = st.text_input("New Password", type="password")
+            if st.button("Add User"):
+                if new_u and new_p:
+                    st.session_state.user_db[new_u] = new_p
+                    st.success(f"User {new_u} created!")
+                else:
+                    st.warning("Enter both fields")
+
+# 3. Initialize Session States (Your original logic)
 if 'itinerary' not in st.session_state:
     st.session_state.itinerary = []
 if 'tour_title' not in st.session_state:
     st.session_state.tour_title = ""
 
-# CALLBACK FUNCTION TO CLEAR FIELDS SAFELY
 def add_day_callback():
     if st.session_state.route_input:
         activities_list = []
@@ -118,19 +151,19 @@ def add_day_callback():
             if f"act_input_{i}" in st.session_state:
                 st.session_state[f"act_input_{i}"] = ""
 
-# 5. Logo (Top Middle - Unfrozen and Transparent)
+# 4. Logo (Top Middle - Unfrozen)
 logo_path = "logo.png"
 logo_base64 = get_base64(logo_path)
 if logo_base64:
     st.markdown(f"""
-        <div style="text-align: center; margin-top: -20px; padding-bottom: 15px;">
+        <div style="text-align: center; padding: 20px 0;">
             <img class="logo-img" src="data:image/png;base64,{logo_base64}" 
-                 style="width: 240px; opacity: 0.7; transition: 0.3s;"
+                 style="width: 250px; opacity: 0.7; transition: 0.3s;"
                  onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.7'">
         </div>
     """, unsafe_allow_html=True)
 
-# 6. Content Wrapper
+# 5. Content Wrapper
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
 
 st.title("✈️ Exclusive Holidays SL")
@@ -140,7 +173,7 @@ if st.session_state.itinerary:
     total_days = len(st.session_state.itinerary)
     st.info(f"📅 Current Plan: {total_days} Days / {total_days - 1 if total_days > 0 else 0} Nights")
 
-# 7. Input Section
+# 6. Input Section
 st.markdown("### 📝 Build Your Journey")
 st.session_state.tour_title = st.text_input("📍 Tour Title / Client Name", value=st.session_state.tour_title, placeholder="e.g. Johnson Family")
 
@@ -150,7 +183,6 @@ c2.text_input("Distance", placeholder="32 KM", key="dist_input")
 c3.text_input("Time", placeholder="30 mins", key="tm_input")
 
 num_activities = st.selectbox("Number of activities for this day", options=[1, 2, 3, 4, 5, 6], key="num_act_selector")
-
 for i in range(num_activities):
     st.text_input(f"Activity {i+1}", key=f"act_input_{i}", placeholder=f"Activity {i+1} details...")
 
@@ -158,7 +190,7 @@ st.text_area("Place Description", key="desc_input", placeholder="Describe the de
 
 st.button("➕ Add Day to Tour", use_container_width=True, on_click=add_day_callback)
 
-# 8. Exports
+# 7. Exports
 if st.session_state.itinerary:
     st.divider()
     st.markdown("### 📥 Download Documents")
@@ -187,7 +219,7 @@ if st.session_state.itinerary:
             df.to_excel(writer, index=False, sheet_name="Itinerary") 
         st.download_button("📊 Excel Sheet", data=excel_out.getvalue(), file_name=f"{display_title}.xlsx", use_container_width=True)
 
-# 9. Itinerary Display
+# 8. Itinerary Display
 st.divider()
 for i, item in enumerate(st.session_state.itinerary):
     with st.container():
