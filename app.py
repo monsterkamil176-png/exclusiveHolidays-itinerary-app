@@ -12,11 +12,12 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_user_db():
     try:
-        df = conn.read(worksheet="Sheet1", ttl=0) # Matches your tab name
+        # worksheet="Sheet1" ensures we target the correct tab
+        df = conn.read(worksheet="Sheet1", ttl=0)
         if 'username' in df.columns and 'password' in df.columns:
             return dict(zip(df.username.astype(str), df.password.astype(str)))
         return None
-    except:
+    except Exception as e:
         return None
 
 def add_user_to_db(new_u, new_p):
@@ -52,9 +53,14 @@ st.markdown("""
         color: white !important;
         border-radius: 8px !important;
         font-weight: 600 !important;
+        height: 45px;
+    }
+    .main-card {
+        background-color: #ffffff; padding: 40px; border-radius: 15px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); max-width: 900px; margin: auto;
     }
     .itinerary-card {
-        background-color: #ffffff; padding: 20px; border-radius: 12px; 
+        background-color: #f8f9fa; padding: 20px; border-radius: 12px; 
         margin-bottom: 15px; border-left: 8px solid #6495ED; 
     }
     </style>
@@ -80,49 +86,16 @@ if not st.session_state.authenticated:
                 st.session_state.current_user = u_input
                 st.rerun()
             else:
-                st.error("Connection error with database or invalid credentials")
-        
-        st.markdown(f'<div style="text-align: center; margin-top: 15px;"><a href="mailto:monsterkamil176@gmail.com" style="color: #6495ED; text-decoration: none;">Unable to sign in?</a></div>', unsafe_allow_html=True)
+                st.error("Invalid Credentials or Connection Error")
     st.stop()
 
-# --- SIDEBAR (FORCED POSITION) ---
-# This must be outside of any other column or container logic to appear
-with st.sidebar:
-    st.title("Settings")
-    st.write(f"👤 User: **{st.session_state.current_user}**")
-    
-    if st.button("Logout", use_container_width=True):
+# --- POST-LOGIN HEADER ---
+# Simple Logout button at the top right
+top_l, top_r = st.columns([9, 1])
+with top_r:
+    if st.button("Logout"):
         st.session_state.authenticated = False
         st.rerun()
-    
-    if st.session_state.current_user == "admin01":
-        st.divider()
-        st.subheader("🛠️ User Management")
-        with st.expander("➕ Add New User"):
-            new_u = st.text_input("New Username")
-            new_p = st.text_input("New Password")
-            if st.button("Save to Sheet"):
-                if new_u and new_p:
-                    add_user_to_db(new_u, new_p)
-                    st.success("Added!")
-                    st.rerun()
-        
-        with st.expander("🗑️ Delete User"):
-            try:
-                df_users = conn.read(worksheet="Sheet1", ttl=0)
-                other_users = df_users[df_users['username'] != 'admin01']['username'].tolist()
-                if other_users:
-                    u_to_del = st.selectbox("Select user", options=other_users)
-                    if st.button("Delete Forever", type="primary"):
-                        updated_df = df_users[df_users['username'] != u_to_del]
-                        conn.update(worksheet="Sheet1", data=updated_df)
-                        st.cache_data.clear()
-                        st.rerun()
-            except:
-                st.write("No users found.")
-
-# --- MAIN APP INTERFACE ---
-st.markdown('<div style="max-width: 1000px; margin: auto; padding: 20px;">', unsafe_allow_html=True)
 
 # Branding
 logo_path = "logo.png"
@@ -130,38 +103,76 @@ logo_base64 = get_base64(logo_path)
 if logo_base64:
     st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="150"></div>', unsafe_allow_html=True)
 
-st.markdown('<h1 style="text-align: center; color: #333;">Exclusive Holidays Itinerary Builder</h1>', unsafe_allow_html=True)
-st.markdown("---")
+# --- DYNAMIC CONTENT BASED ON ROLE ---
 
-# Builder Section
-st.subheader("📝 Create New Journey")
-tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. 10 Days Luxury Tour")
+# ROLE 1: ADMIN (User Management)
+if st.session_state.current_user == "admin01":
+    st.markdown('<h1 style="text-align: center; color: #333;">User Management Panel</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    
+    tab1, tab2 = st.tabs(["➕ Add New Staff", "🗑️ Remove Staff"])
+    
+    with tab1:
+        new_u = st.text_input("Username for new staff")
+        new_p = st.text_input("Password for new staff", type="password")
+        if st.button("Add Staff Account", use_container_width=True):
+            if new_u and new_p:
+                add_user_to_db(new_u, new_p)
+                st.success(f"Account for {new_u} created successfully!")
+    
+    with tab2:
+        try:
+            df_users = conn.read(worksheet="Sheet1", ttl=0)
+            # Prevent admin from deleting themselves
+            others = df_users[df_users['username'] != 'admin01']['username'].tolist()
+            if others:
+                u_to_del = st.selectbox("Select staff account to remove", options=others)
+                if st.button("Confirm Deletion", type="primary", use_container_width=True):
+                    updated_df = df_users[df_users['username'] != u_to_del]
+                    conn.update(worksheet="Sheet1", data=updated_df)
+                    st.cache_data.clear()
+                    st.success("Account deleted.")
+                    st.rerun()
+            else:
+                st.info("No other staff accounts found.")
+        except:
+            st.error("Could not load user list.")
+    
+    st.markdown('</div>', unsafe_allow_html=True)
 
-c1, c2, c3 = st.columns([2, 1, 1])
-with c1: r_in = st.text_input("Route", placeholder="Airport to Negombo")
-with c2: d_in = st.text_input("Distance", placeholder="35 KM")
-with c3: t_in = st.text_input("Time", placeholder="45 Mins")
-
-desc_in = st.text_area("Description", placeholder="Enter highlights...")
-
-if st.button("➕ Add Day to Itinerary", use_container_width=True):
-    if r_in:
-        st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
-        st.rerun()
-
-# Preview Section
-if st.session_state.itinerary:
-    st.divider()
-    for i, item in enumerate(st.session_state.itinerary):
-        st.markdown(f'''
-            <div class="itinerary-card">
-                <h4 style="margin:0; color: #6495ED;">Day {i+1}: {item["Route"]}</h4>
-                <p>📏 {item["Distance"]} | ⏱️ {item["Time"]}</p>
-                <p>{item["Description"]}</p>
-            </div>
-        ''', unsafe_allow_html=True)
-        if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
-            st.session_state.itinerary.pop(i)
+# ROLE 2: STAFF (Itinerary Builder)
+else:
+    st.markdown('<h1 style="text-align: center; color: #333;">Exclusive Holidays Itinerary Builder</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="main-card">', unsafe_allow_html=True)
+    
+    st.subheader("📝 Create New Journey")
+    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. 10 Days Luxury Tour")
+    
+    c1, c2, c3 = st.columns([2, 1, 1])
+    with c1: r_in = st.text_input("Route", placeholder="Airport to Negombo")
+    with c2: d_in = st.text_input("Distance", placeholder="35 KM")
+    with c3: t_in = st.text_input("Time", placeholder="45 Mins")
+    
+    desc_in = st.text_area("Description", placeholder="Enter highlights...")
+    
+    if st.button("➕ Add Day to Itinerary", use_container_width=True):
+        if r_in:
+            st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
             st.rerun()
 
-st.markdown('</div>', unsafe_allow_html=True)
+    # Preview Section
+    if st.session_state.itinerary:
+        st.divider()
+        for i, item in enumerate(st.session_state.itinerary):
+            st.markdown(f'''
+                <div class="itinerary-card">
+                    <h4 style="margin:0; color: #6495ED;">Day {i+1}: {item["Route"]}</h4>
+                    <p>📏 {item["Distance"]} | ⏱️ {item["Time"]}</p>
+                    <p>{item["Description"]}</p>
+                </div>
+            ''', unsafe_allow_html=True)
+            if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
+                st.session_state.itinerary.pop(i)
+                st.rerun()
+    
+    st.markdown('</div>', unsafe_allow_html=True)
