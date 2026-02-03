@@ -3,4 +3,5 @@ pandas
 xlsxwriter
 python-docx
 st-gsheets-connection
+fpdf2
 
