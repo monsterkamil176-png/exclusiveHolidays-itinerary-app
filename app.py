@@ -38,7 +38,6 @@ def get_base64(path):
     return None
 
 def clean_for_pdf(text):
-    """Aggressively removes any non-standard character to stop PDF crashes."""
     if not text: return ""
     return re.sub(r'[^a-zA-Z0-9\s\.,\-\(\):/]', '', str(text))
 
@@ -115,7 +114,6 @@ if not st.session_state.authenticated:
                 user_row = db[(db["username"] == u) & (db["password"].astype(str) == p)]
                 if not user_row.empty:
                     st.session_state.authenticated = True
-                    # admin01 triggers the Admin Role
                     st.session_state.user_role = "Admin" if u.lower() in ["admin", "admin01"] else "Staff"
                     st.rerun()
                 else: st.error("Invalid credentials")
@@ -136,7 +134,6 @@ with c_logout:
 if st.session_state.user_role == "Admin":
     st.subheader("🛠️ Admin Panel: User Management")
     
-    # 1. ADD NEW USER SECTION
     with st.container(border=True):
         st.write("### Add New Staff User")
         new_u = st.text_input("New Username", placeholder="e.g. staff_member")
@@ -156,7 +153,6 @@ if st.session_state.user_role == "Admin":
             else:
                 st.warning("Please fill in both fields.")
 
-    # 2. VIEW CURRENT USERS
     st.write("---")
     st.write("### Current Active Users")
     st.dataframe(load_user_db(), use_container_width=True)
@@ -164,19 +160,30 @@ if st.session_state.user_role == "Admin":
 else:
     # STAFF / ITINERARY BUILDER
     st.subheader("✈️ Itinerary Builder")
+    
+    # ITINERARY NAME EXAMPLE
     it_name = st.text_input("Itinerary Name", placeholder="Relax on Beach – 10 Days")
     
     colA, colB, colC = st.columns([2, 1, 1])
-    with colA: r = st.text_input("Route", placeholder="Airport - Negombo", key=f"r_{st.session_state.builder_form_key}")
-    with colB: dist = st.text_input("Distance", placeholder="9.5KM", key=f"d_{st.session_state.builder_form_key}")
-    with colC: dur = st.text_input("Duration", placeholder="30 Minutes", key=f"t_{st.session_state.builder_form_key}")
+    with colA: 
+        # ROUTE EXAMPLE
+        r = st.text_input("Route", placeholder="Airport - Negombo", key=f"r_{st.session_state.builder_form_key}")
+    with colB: 
+        # DISTANCE EXAMPLE
+        dist = st.text_input("Distance", placeholder="9.5KM", key=f"d_{st.session_state.builder_form_key}")
+    with colC: 
+        # DURATION EXAMPLE
+        dur = st.text_input("Duration", placeholder="30 Minutes", key=f"t_{st.session_state.builder_form_key}")
     
+    # ACTIVITY FIELD BEFORE DESCRIPTION
     num_a = st.selectbox("How many activities?", range(0, 11))
     acts = []
     for i in range(num_a):
+        # ACTIVITY EXAMPLE
         a_val = st.text_input(f"Activity {i+1}", placeholder="Relaxing on the beach", key=f"act_{st.session_state.builder_form_key}_{i}")
         if a_val: acts.append(f"• {a_val}")
     
+    # DESCRIPTION FIELD AFTER ACTIVITY
     main_d = st.text_area("Description", placeholder="Negombo is a bustling,, historic coastal city...", key=f"desc_{st.session_state.builder_form_key}")
     
     if st.button("➕ Add Day"):
