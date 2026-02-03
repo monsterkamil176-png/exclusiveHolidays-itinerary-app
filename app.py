@@ -1,15 +1,15 @@
-import streamlit as st
+mport streamlit as st
 import pandas as pd
 import re
 from io import BytesIO
 from fpdf import FPDF
 from streamlit_gsheets import GSheetsConnection
 
-# ================= 1. PAGE SETUP =================
+# ================= 1. PAGE CONFIG =================
 st.set_page_config(page_title="Exclusive Holidays SL", page_icon="✈️", layout="wide")
 
-# ================= 2. MANDATORY BRANDING (ALWAYS LOADS) =================
-# This is placed OUTSIDE and ABOVE the login check so it is always visible.
+# ================= 2. MANDATORY BRANDING (FORCED TO TOP) =================
+# This section MUST stay above the login logic to appear on the login screen.
 st.markdown("""
     <div style='text-align:center; padding:20px;'>
         <h1 style='color:white; text-shadow: 3px 3px 6px #000000; margin-bottom:0; font-size:3rem;'>
@@ -52,6 +52,7 @@ if not st.session_state.authenticated:
             u = st.text_input("Username")
             p = st.text_input("Password", type="password")
             if st.form_submit_button("Login"):
+                # Connect to Google Sheets
                 conn = st.connection("gsheets", type=GSheetsConnection)
                 db = conn.read(worksheet="Sheet1", ttl=0)
                 match = db[(db["username"] == u) & (db["password"].astype(str) == p)]
@@ -64,11 +65,11 @@ if not st.session_state.authenticated:
         
         # HELP LINK FOR LOGIN ISSUES
         st.markdown("<div style='text-align:center;'><a href='#' style='color:#FFD700; text-decoration:none;'>Unable to sign in? Contact Admin</a></div>", unsafe_allow_html=True)
-    st.stop()
+    st.stop() # Prevents further execution until logged in
 
 # ================= 6. POST-LOGIN UI =================
 
-# LOGOUT BUTTON - Top Right
+# LOGOUT BUTTON - Visible at the top right
 top_c1, top_c2 = st.columns([9, 1])
 top_c1.write(f"Logged in as: **{st.session_state.user_role}**")
 if top_c2.button("Logout"):
@@ -85,7 +86,7 @@ if st.session_state.user_role == "Admin":
 # --- STAFF ITINERARY BUILDER ---
 else:
     st.header("✈️ Itinerary Builder")
-    title = st.text_input("Itinerary Name", placeholder="e.g. 10 Days in Paradise")
+    it_title = st.text_input("Itinerary Name", placeholder="e.g. 10 Days in Paradise")
     
     cA, cB, cC = st.columns([2, 1, 1])
     route = cA.text_input("Route", placeholder="Colombo to Kandy")
@@ -106,7 +107,7 @@ else:
         ex1, ex2 = st.columns(2)
         ex1.download_button("📊 Excel Export", pd.DataFrame(st.session_state.itinerary).to_csv(index=False).encode('utf-8'), "trip.csv")
         
-        # Simple PDF generation
+        # PDF Generation Logic
         pdf = FPDF()
         pdf.add_page()
         pdf.set_font("Arial", "B", 16); pdf.cell(0, 10, "EXCLUSIVE HOLIDAYS", 0, 1, "C")
