@@ -19,12 +19,6 @@ def load_user_db():
         return df
     except: return None
 
-def update_user_password(username, new_password):
-    df = conn.read(worksheet="Sheet1", ttl=0)
-    df.loc[df['username'] == username, ['password', 'status']] = [str(new_password), "Active"]
-    conn.update(worksheet="Sheet1", data=df)
-    st.cache_data.clear()
-
 # Initialize Session States
 if 'authenticated' not in st.session_state: st.session_state.authenticated = False
 if 'itinerary' not in st.session_state: st.session_state.itinerary = []
@@ -46,10 +40,8 @@ st.markdown(f"""
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
     .stTextInput input, .stTextArea textarea {{ background-color: rgba(255, 255, 255, 0.95) !important; color: #1e1e1e !important; }}
-    ::placeholder {{ color: #777777 !important; opacity: 1; }}
-    .stButton > button {{ color: #000000 !important; font-weight: 800 !important; background-color: #ffffff !important; }}
+    .stButton > button {{ color: #000000 !important; font-weight: 800 !important; background-color: #ffffff !important; border-radius: 8px; }}
     h1, h2, h3, p, label {{ color: white !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
-    header, footer {{ visibility: hidden; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -60,29 +52,13 @@ def display_branding():
     st.markdown('<h1 style="text-align: center; font-size: 28px; margin-bottom:0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; font-style: italic; margin-top:0;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
 
-# --- PDF TEXT CLEANER (Fixes the Encoding Error) ---
+# --- PDF TEXT CLEANER (Fixes the Emoji/Link Symbol Crash) ---
 def safe_text(text):
-    """Removes emojis and special symbols that crash FPDF"""
     if not text: return ""
+    # Standard PDF fonts only support Latin-1. This removes emojis/symbols.
     return text.encode('latin-1', 'replace').decode('latin-1').replace('?', '')
 
-# --- EXPORTS ---
-def to_excel(df):
-    output = BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Itinerary')
-    return output.getvalue()
-
-def to_word(title, itinerary):
-    doc = Document()
-    doc.add_heading(f'Itinerary: {title}', 0)
-    for i, item in enumerate(itinerary):
-        doc.add_heading(f'Day {i+1}: {item["Route"]}', level=1)
-        doc.add_paragraph(item['Description'])
-    bio = BytesIO()
-    doc.save(bio)
-    return bio.getvalue()
-
+# --- EXPORT LOGIC ---
 def create_pdf(title, itinerary):
     pdf = FPDF()
     pdf.add_page()
@@ -95,79 +71,83 @@ def create_pdf(title, itinerary):
     
     for i, day in enumerate(itinerary):
         pdf.set_font('helvetica', 'B', 12)
-        pdf.cell(0, 10, f'Day {i+1}: {safe_text(day["Route"])}', 1, 1, 'L')
+        route_header = f"Day {i+1}: {day['Route']} ({day['Distance']} | {day['Time']})"
+        pdf.cell(0, 10, safe_text(route_header), 1, 1, 'L')
         pdf.set_font('helvetica', '', 11)
         pdf.multi_cell(0, 7, safe_text(day['Description']))
         pdf.ln(5)
     return pdf.output()
 
-# --- MAIN APP UI ---
-if not st.session_state.authenticated:
-    # (Put your login logic here - assuming True for now)
-    st.session_state.authenticated = True 
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Itinerary')
+    return output.getvalue()
 
-# Branding
+# --- MAIN UI ---
+if not st.session_state.authenticated:
+    st.session_state.authenticated = True # Assuming login bypass for fix
+
 display_branding()
 
-# --- LOGOUT BUTTON (FIXED POSITION) ---
-col_spacer, col_logout = st.columns([9, 1])
-with col_logout:
-    if st.button("Logout", key="top_logout"):
+# Logout Row
+c_space, c_logout = st.columns([9, 1.2])
+with c_logout:
+    if st.button("Logout"):
         st.session_state.authenticated = False
         st.rerun()
 
 tab_build, tab_set = st.tabs(["✈️ Itinerary Builder", "Settings ⚙️"])
 
 with tab_build:
-    tour_title = st.text_input("Client Name", placeholder="e.g. Smith Family", key="title_main")
+    tour_title = st.text_input("Client Name", placeholder="e.g. John Doe", key="title_main")
     
     colA, colB, colC = st.columns([2, 1, 1])
     with colA: r_in = st.text_input("Route", placeholder="Airport -> Negombo", key=f"r_{st.session_state.builder_form_key}")
-    with colB: d_in = st.text_input("Distance", placeholder="9 KM", key=f"d_{st.session_state.builder_form_key}")
-    with colC: t_in = st.text_input("Time", placeholder="20 Mins", key=f"t_{st.session_state.builder_form_key}")
+    with colB: d_in = st.text_input("Distance", placeholder="35 KM", key=f"d_{st.session_state.builder_form_key}")
+    with colC: t_in = st.text_input("Time", placeholder="1 Hr 15 Mins", key=f"t_{st.session_state.builder_form_key}")
     
-    desc_box = st.text_area("General Description", placeholder="Enter highlights...", key=f"desc_{st.session_state.builder_form_key}")
+    desc_box = st.text_area("General Description", placeholder="Enter the story of the day...", key=f"desc_{st.session_state.builder_form_key}")
     
-    num_activities = st.selectbox("Number of specific activities", range(0, 11), index=0)
+    # Dynamic Activities
+    num_activities = st.selectbox("How many activities?", range(0, 6), index=0)
     activity_list = []
     for j in range(num_activities):
         act = st.text_input(f"Activity {j+1}", key=f"act_{st.session_state.builder_form_key}_{j}")
         if act: activity_list.append(f"• {act}")
     
-    full_description = desc_box + "\n" + "\n".join(activity_list)
+    full_description = desc_box + ("\n\n" + "\n".join(activity_list) if activity_list else "")
     
-    btn_col1, btn_col2 = st.columns([1, 1])
-    with btn_col1:
+    b1, b2 = st.columns([1, 1])
+    with b1:
         if st.button("➕ Add Day"):
             if r_in:
                 st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": full_description})
                 st.session_state.builder_form_key += 1
                 st.rerun()
-    with btn_col2:
+    with b2:
         if st.button("🗑️ Clear All"):
             st.session_state.itinerary = []
             st.rerun()
 
     if st.session_state.itinerary:
         st.markdown("---")
-        # --- EXPORT BUTTONS (FIXED EXCEL & PDF) ---
-        e1, e2, e3 = st.columns(3)
-        with e1:
-            df_export = pd.DataFrame(st.session_state.itinerary)
-            st.download_button("📥 Excel", data=to_excel(df_export), file_name=f"{tour_title}.xlsx")
-        with e2:
-            st.download_button("📥 Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
-        with e3:
+        # Export Buttons
+        ex1, ex2, ex3 = st.columns(3)
+        with ex1:
+            st.download_button("📥 Excel", data=to_excel(pd.DataFrame(st.session_state.itinerary)), file_name=f"{tour_title}.xlsx")
+        with ex2:
             try:
                 pdf_bytes = create_pdf(tour_title, st.session_state.itinerary)
                 st.download_button("📥 PDF", data=pdf_bytes, file_name=f"{tour_title}.pdf", mime="application/pdf")
-            except Exception as e:
-                st.error("There is a character in your text that PDF cannot read. Please avoid emojis.")
-
-        # Display Summary
+            except:
+                st.error("Error generating PDF. Check for special symbols.")
+        
+        # Displays days with Distance and Time
         for i, item in enumerate(st.session_state.itinerary):
             with st.container():
                 st.markdown(f"### Day {i+1}: {item['Route']}")
+                st.markdown(f"**📍 Distance:** {item['Distance']} | **⏳ Duration:** {item['Time']}")
                 st.write(item['Description'])
                 if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
                     st.session_state.itinerary.pop(i)
