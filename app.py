@@ -2,6 +2,8 @@ import streamlit as st
 import os
 import base64
 import pandas as pd
+from io import BytesIO
+from docx import Document
 from streamlit_gsheets import GSheetsConnection
 
 # 1. Page Config
@@ -17,7 +19,7 @@ def load_user_db():
         if 'username' in df.columns and 'password' in df.columns:
             return dict(zip(df.username.astype(str), df.password.astype(str)))
         return None
-    except Exception as e:
+    except:
         return None
 
 def add_user_to_db(new_u, new_p):
@@ -74,11 +76,9 @@ if not st.session_state.authenticated:
         logo_base64 = get_base64(logo_path)
         if logo_base64:
             st.markdown(f'<div style="text-align: center; margin-top: 80px;"><img src="data:image/png;base64,{logo_base64}" width="180"></div>', unsafe_allow_html=True)
-        
         st.markdown('<h2 style="text-align: center; color: #444;">Sign in</h2>', unsafe_allow_html=True)
         u_input = st.text_input("Username", placeholder="Username", label_visibility="collapsed")
         p_input = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
-        
         if st.button("Sign In", use_container_width=True):
             user_db = load_user_db()
             if user_db and u_input in user_db and str(user_db[u_input]) == p_input:
@@ -86,91 +86,98 @@ if not st.session_state.authenticated:
                 st.session_state.current_user = u_input
                 st.rerun()
             else:
-                st.error("Invalid Credentials or Connection Error")
+                st.error("Invalid Credentials")
     st.stop()
 
-# --- POST-LOGIN HEADER ---
-# Simple Logout button at the top right
+# --- DYNAMIC HEADER ---
 top_l, top_r = st.columns([9, 1])
 with top_r:
     if st.button("Logout"):
         st.session_state.authenticated = False
         st.rerun()
 
-# Branding
 logo_path = "logo.png"
 logo_base64 = get_base64(logo_path)
 if logo_base64:
     st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="150"></div>', unsafe_allow_html=True)
 
-# --- DYNAMIC CONTENT BASED ON ROLE ---
-
-# ROLE 1: ADMIN (User Management)
+# --- ADMIN VIEW: USER MANAGEMENT ---
 if st.session_state.current_user == "admin01":
-    st.markdown('<h1 style="text-align: center; color: #333;">User Management Panel</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 style="text-align: center; color: #333;">Staff Management</h1>', unsafe_allow_html=True)
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
-    
-    tab1, tab2 = st.tabs(["➕ Add New Staff", "🗑️ Remove Staff"])
-    
+    tab1, tab2 = st.tabs(["➕ Create Account", "🗑️ Remove Account"])
     with tab1:
-        new_u = st.text_input("Username for new staff")
-        new_p = st.text_input("Password for new staff", type="password")
-        if st.button("Add Staff Account", use_container_width=True):
+        new_u = st.text_input("Staff Username")
+        new_p = st.text_input("Staff Password", type="password")
+        if st.button("Save Account", use_container_width=True):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
-                st.success(f"Account for {new_u} created successfully!")
-    
+                st.success(f"Account for {new_u} added to Sheet1")
     with tab2:
-        try:
-            df_users = conn.read(worksheet="Sheet1", ttl=0)
-            # Prevent admin from deleting themselves
-            others = df_users[df_users['username'] != 'admin01']['username'].tolist()
-            if others:
-                u_to_del = st.selectbox("Select staff account to remove", options=others)
-                if st.button("Confirm Deletion", type="primary", use_container_width=True):
-                    updated_df = df_users[df_users['username'] != u_to_del]
-                    conn.update(worksheet="Sheet1", data=updated_df)
-                    st.cache_data.clear()
-                    st.success("Account deleted.")
-                    st.rerun()
-            else:
-                st.info("No other staff accounts found.")
-        except:
-            st.error("Could not load user list.")
-    
+        df_u = conn.read(worksheet="Sheet1", ttl=0)
+        others = df_u[df_u['username'] != 'admin01']['username'].tolist()
+        if others:
+            u_to_del = st.selectbox("Select account", options=others)
+            if st.button("Delete Permanent", type="primary", use_container_width=True):
+                up_df = df_u[df_u['username'] != u_to_del]
+                conn.update(worksheet="Sheet1", data=up_df)
+                st.cache_data.clear()
+                st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ROLE 2: STAFF (Itinerary Builder)
+# --- STAFF VIEW: ITINERARY BUILDER & EXPORT ---
 else:
     st.markdown('<h1 style="text-align: center; color: #333;">Exclusive Holidays Itinerary Builder</h1>', unsafe_allow_html=True)
     st.markdown('<div class="main-card">', unsafe_allow_html=True)
     
-    st.subheader("📝 Create New Journey")
-    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. 10 Days Luxury Tour")
+    st.subheader("📝 Journey Details")
+    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Luxury Tour")
     
     c1, c2, c3 = st.columns([2, 1, 1])
     with c1: r_in = st.text_input("Route", placeholder="Airport to Negombo")
     with c2: d_in = st.text_input("Distance", placeholder="35 KM")
     with c3: t_in = st.text_input("Time", placeholder="45 Mins")
+    desc_in = st.text_area("Description", placeholder="Daily highlights...")
     
-    desc_in = st.text_area("Description", placeholder="Enter highlights...")
-    
-    if st.button("➕ Add Day to Itinerary", use_container_width=True):
+    if st.button("➕ Add Day", use_container_width=True):
         if r_in:
             st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
             st.rerun()
 
-    # Preview Section
+    # EXPORT SECTION
+    if st.session_state.itinerary:
+        st.divider()
+        st.markdown("### 📥 Export Itinerary")
+        
+        # Word Logic
+        def create_word(data, title):
+            doc = Document()
+            doc.add_heading(title or "Itinerary", 0)
+            for i, day in enumerate(data):
+                doc.add_heading(f"Day {i+1}: {day['Route']}", level=1)
+                doc.add_paragraph(f"Distance: {day['Distance']} | Time: {day['Time']}")
+                doc.add_paragraph(day['Description'])
+            out = BytesIO()
+            doc.save(out)
+            return out.getvalue()
+
+        # Excel Logic
+        df_export = pd.DataFrame(st.session_state.itinerary)
+        excel_out = BytesIO()
+        with pd.ExcelWriter(excel_out, engine='xlsxwriter') as writer:
+            df_export.to_excel(writer, index=False, sheet_name="Itinerary")
+        
+        col_ex1, col_ex2 = st.columns(2)
+        with col_ex1:
+            st.download_button("📝 Download Word", data=create_word(st.session_state.itinerary, tour_title), file_name=f"{tour_title}.docx", use_container_width=True)
+        with col_ex2:
+            st.download_button("📊 Download Excel", data=excel_out.getvalue(), file_name=f"{tour_title}.xlsx", use_container_width=True)
+
+    # PREVIEW
     if st.session_state.itinerary:
         st.divider()
         for i, item in enumerate(st.session_state.itinerary):
-            st.markdown(f'''
-                <div class="itinerary-card">
-                    <h4 style="margin:0; color: #6495ED;">Day {i+1}: {item["Route"]}</h4>
-                    <p>📏 {item["Distance"]} | ⏱️ {item["Time"]}</p>
-                    <p>{item["Description"]}</p>
-                </div>
-            ''', unsafe_allow_html=True)
+            st.markdown(f'<div class="itinerary-card"><b>Day {i+1}: {item["Route"]}</b><br>{item["Distance"]} | {item["Time"]}<br>{item["Description"]}</div>', unsafe_allow_html=True)
             if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
                 st.session_state.itinerary.pop(i)
                 st.rerun()
