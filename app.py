@@ -19,7 +19,7 @@ def load_user_db():
     except:
         return None
 
-def update_user_in_db(username, new_password):
+def update_user_password(username, new_password):
     df = conn.read(worksheet="Sheet1", ttl=0)
     df.loc[df['username'] == username, ['password', 'status']] = [str(new_password), "Active"]
     conn.update(worksheet="Sheet1", data=df)
@@ -125,19 +125,19 @@ if not st.session_state.authenticated:
                     else: st.error("Invalid Credentials")
     st.stop()
 
-# --- PHASE 2: PASSWORD CHANGE ---
+# --- PHASE 2: FORCED PASSWORD CHANGE (FIRST TIME) ---
 if st.session_state.needs_password_change:
     display_branding(logo_size=120)
-    st.markdown("## 🔒 Set Your Permanent Password")
-    with st.form("pw_form"):
+    st.markdown("## 🔒 First-time Login: Set Password")
+    with st.form("forced_pw_form"):
         new_p = st.text_input("New Password", type="password")
         conf_p = st.text_input("Confirm New Password", type="password")
         if st.form_submit_button("Update & Continue"):
             if new_p == conf_p and len(new_p) >= 4:
-                update_user_in_db(st.session_state.current_user, new_p)
+                update_user_password(st.session_state.current_user, new_p)
                 st.session_state.needs_password_change = False
                 st.rerun()
-            else: st.error("Passwords must match (min 4 chars).")
+            else: st.error("Check password length (min 4) or match.")
     st.stop()
 
 # --- PHASE 3: MAIN APP ---
@@ -149,60 +149,77 @@ with t_col2:
         st.session_state.authenticated = False
         st.rerun()
 
+# COMMON PASSWORD CHANGE TAB LOGIC
+def change_password_ui():
+    st.markdown("### 🔑 Change Your Password")
+    with st.form("manual_change_form", clear_on_submit=True):
+        old_p = st.text_input("Old Password", type="password")
+        new_p = st.text_input("New Password", type="password")
+        conf_p = st.text_input("Confirm New Password", type="password")
+        if st.form_submit_button("Save New Password"):
+            df = load_user_db()
+            current_p = str(df[df['username'] == st.session_state.current_user].iloc[0]['password'])
+            
+            if old_p != current_p:
+                st.error("The 'Old Password' you entered is incorrect.")
+            elif new_p != conf_p:
+                st.error("New passwords do not match.")
+            elif len(new_p) < 4:
+                st.error("New password must be at least 4 characters.")
+            else:
+                update_user_password(st.session_state.current_user, new_p)
+                st.success("Password changed successfully!")
+
 if st.session_state.current_user == "admin01":
-    st.markdown("### 👨‍💼 Admin Panel")
-    tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
+    tab1, tab2, tab3 = st.tabs(["Add Staff", "Remove Staff", "Change Admin Password"])
     with tab1:
-        # Wrap in a container with a dynamic key to clear inputs
-        with st.container(border=False):
-            new_u = st.text_input("New Username", key=f"user_{st.session_state.admin_form_key}")
-            new_p = st.text_input("Temp Password", type="password", key=f"pass_{st.session_state.admin_form_key}")
-            if st.button("Register Account"):
-                if new_u and new_p:
-                    add_user_to_db(new_u, new_p)
-                    st.success(f"Added {new_u}!")
-                    # Increment counter to force clear the fields
-                    st.session_state.admin_form_key += 1
-                    st.rerun()
+        st.markdown("### 👨‍💼 Add New Staff")
+        new_u = st.text_input("New Username", key=f"user_{st.session_state.admin_form_key}")
+        new_p = st.text_input("Temp Password", type="password", key=f"pass_{st.session_state.admin_form_key}")
+        if st.button("Register Account"):
+            if new_u and new_p:
+                add_user_to_db(new_u, new_p)
+                st.success(f"Added {new_u}!")
+                st.session_state.admin_form_key += 1
+                st.rerun()
+    with tab3:
+        change_password_ui()
 
 else:
-    st.markdown("### ✈️ Itinerary Builder")
-    # Wrap builder in container with dynamic key
-    with st.container(border=False):
-        tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Smith Family - 7 Days", key="tour_title_fix")
-        
-        c1, c2, c3 = st.columns([2, 1, 1])
-        with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo", key=f"route_{st.session_state.builder_form_key}")
-        with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM", key=f"dist_{st.session_state.builder_form_key}")
-        with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr", key=f"time_{st.session_state.builder_form_key}")
-        desc_in = st.text_area("Description", key=f"desc_{st.session_state.builder_form_key}")
-        
-        col_add, col_clear = st.columns([1, 1])
-        with col_add:
-            if st.button("➕ Add Day"):
-                if r_in:
-                    st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
-                    # Increment counter to clear ONLY the day fields
-                    st.session_state.builder_form_key += 1
+    tab_build, tab_settings = st.tabs(["✈️ Itinerary Builder", "Settings ⚙️"])
+    
+    with tab_build:
+        with st.container(border=False):
+            tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Smith Family - 7 Days", key="tour_title_fix")
+            c1, c2, c3 = st.columns([2, 1, 1])
+            with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo", key=f"route_{st.session_state.builder_form_key}")
+            with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM", key=f"dist_{st.session_state.builder_form_key}")
+            with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr", key=f"time_{st.session_state.builder_form_key}")
+            desc_in = st.text_area("Description", key=f"desc_{st.session_state.builder_form_key}")
+            
+            col_add, col_clear = st.columns([1, 1])
+            with col_add:
+                if st.button("➕ Add Day"):
+                    if r_in:
+                        st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in})
+                        st.session_state.builder_form_key += 1
+                        st.rerun()
+            with col_clear:
+                if st.button("🗑️ Clear All"):
+                    st.session_state.itinerary = []
                     st.rerun()
-        
-        with col_clear:
-            if st.button("🗑️ Clear All"):
-                st.session_state.itinerary = []
-                st.rerun()
 
-    if st.session_state.itinerary:
-        st.markdown("---")
-        df_itin = pd.DataFrame(st.session_state.itinerary)
-        
-        ex1, ex2 = st.columns(2)
-        with ex1:
-            st.download_button("📥 Export to Excel", data=to_excel(df_itin), file_name=f"{tour_title}.xlsx")
-        with ex2:
-            st.download_button("📥 Export to Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
-        
-        for i, item in enumerate(st.session_state.itinerary):
-            st.markdown(f"**Day {i+1}: {item['Route']}**")
-            if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
-                st.session_state.itinerary.pop(i)
-                st.rerun()
+        if st.session_state.itinerary:
+            st.markdown("---")
+            df_itin = pd.DataFrame(st.session_state.itinerary)
+            ex1, ex2 = st.columns(2)
+            with ex1: st.download_button("📥 Export Excel", data=to_excel(df_itin), file_name=f"{tour_title}.xlsx")
+            with ex2: st.download_button("📥 Export Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
+            for i, item in enumerate(st.session_state.itinerary):
+                st.markdown(f"**Day {i+1}: {item['Route']}**")
+                if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
+                    st.session_state.itinerary.pop(i)
+                    st.rerun()
+    
+    with tab_settings:
+        change_password_ui()
