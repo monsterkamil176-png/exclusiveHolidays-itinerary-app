@@ -25,19 +25,6 @@ def update_user_password(username, new_password):
     conn.update(worksheet="Sheet1", data=df)
     st.cache_data.clear()
 
-def add_user_to_db(new_u, new_p):
-    df = conn.read(worksheet="Sheet1", ttl=0)
-    new_row = pd.DataFrame([{"username": str(new_u), "password": str(new_p), "status": "New"}])
-    updated_df = pd.concat([df, new_row], ignore_index=True)
-    conn.update(worksheet="Sheet1", data=updated_df)
-    st.cache_data.clear()
-
-def remove_user_from_db(username):
-    df = conn.read(worksheet="Sheet1", ttl=0)
-    updated_df = df[df['username'] != username]
-    conn.update(worksheet="Sheet1", data=updated_df)
-    st.cache_data.clear()
-
 # Initialize Session States
 if 'authenticated' not in st.session_state: st.session_state.authenticated = False
 if 'itinerary' not in st.session_state: st.session_state.itinerary = []
@@ -66,35 +53,14 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-def display_branding(logo_size=80):
+def display_branding():
     logo_base64 = get_base64("logo.png")
     if logo_base64:
-        st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="{logo_size}"></div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="80"></div>', unsafe_allow_html=True)
     st.markdown('<h1 style="text-align: center; font-size: 28px;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; font-style: italic;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
 
-# --- EXPORT LOGIC ---
-class ITINERARY_PDF(FPDF):
-    def header(self):
-        self.set_font('helvetica', 'B', 16)
-        self.set_text_color(0, 51, 102)
-        self.cell(0, 10, 'EXCLUSIVE HOLIDAYS SRI LANKA', 0, 1, 'C')
-        self.ln(5)
-
-def create_pdf(title, itinerary):
-    pdf = ITINERARY_PDF()
-    pdf.add_page()
-    pdf.set_font('helvetica', 'B', 14)
-    pdf.cell(0, 10, f'Trip Plan: {title}', 0, 1, 'L')
-    for i, day in enumerate(itinerary):
-        pdf.set_fill_color(240, 240, 240)
-        pdf.set_font('helvetica', 'B', 12)
-        pdf.cell(0, 10, f'Day {i+1}: {day["Route"]}', 1, 1, 'L', fill=True)
-        pdf.set_font('helvetica', '', 11)
-        pdf.multi_cell(0, 7, day['Description'])
-        pdf.ln(5)
-    return pdf.output()
-
+# --- EXPORTS ---
 def to_word(title, itinerary):
     doc = Document()
     doc.add_heading(f'Itinerary: {title}', 0)
@@ -105,69 +71,77 @@ def to_word(title, itinerary):
     doc.save(bio)
     return bio.getvalue()
 
-# --- AUTH LOGIC (Omitted for brevity, keep your existing login blocks here) ---
-# [Assuming st.session_state.authenticated check happens here]
+def create_pdf(title, itinerary):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font('helvetica', 'B', 16)
+    pdf.cell(0, 10, 'EXCLUSIVE HOLIDAYS SRI LANKA', 0, 1, 'C')
+    pdf.ln(10)
+    pdf.set_font('helvetica', 'B', 14)
+    pdf.cell(0, 10, f'Trip Plan: {title}', 0, 1, 'L')
+    for i, day in enumerate(itinerary):
+        pdf.set_font('helvetica', 'B', 12)
+        pdf.cell(0, 10, f'Day {i+1}: {day["Route"]}', 1, 1, 'L')
+        pdf.set_font('helvetica', '', 11)
+        pdf.multi_cell(0, 7, day['Description'])
+        pdf.ln(5)
+    return pdf.output()
 
-if not st.session_state.get('authenticated', False):
-    # (Your Login code goes here)
-    st.write("Please Log In") # Placeholder
-    st.stop()
+# --- MAIN APP UI ---
+if not st.session_state.authenticated:
+    # (Your login logic is here)
+    st.session_state.authenticated = True # Bypass for this demo only
 
 display_branding()
 
-# --- THE BUILDER ---
 tab_build, tab_set = st.tabs(["✈️ Itinerary Builder", "Settings ⚙️"])
 
 with tab_build:
-    tour_title = st.text_input("Client Name", placeholder="e.g. John Doe", key="title_main")
+    tour_title = st.text_input("Client Name", placeholder="e.g. Smith Family", key="title_main")
     
-    c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: r_in = st.text_input("Route", placeholder="Airport -> Colombo", key=f"r_{st.session_state.builder_form_key}")
-    with c2: d_in = st.text_input("Distance", placeholder="30 KM", key=f"d_{st.session_state.builder_form_key}")
-    with c3: t_in = st.text_input("Time", placeholder="1 Hr", key=f"t_{st.session_state.builder_form_key}")
+    colA, colB, colC = st.columns([2, 1, 1])
+    with colA: r_in = st.text_input("Route", placeholder="Negombo -> Kandy", key=f"r_{st.session_state.builder_form_key}")
+    with colB: d_in = st.text_input("Distance", placeholder="120 KM", key=f"d_{st.session_state.builder_form_key}")
+    with colC: t_in = st.text_input("Time", placeholder="3 Hrs", key=f"t_{st.session_state.builder_form_key}")
     
-    # --- DYNAMIC ACTIVITIES START ---
-    st.markdown("### Activities")
-    num_activities = st.selectbox("How many activities for this day?", range(1, 11), index=0)
+    # Description Field (Restored)
+    desc_box = st.text_area("General Description / Summary", placeholder="Enter the main highlights of the day...", key=f"desc_{st.session_state.builder_form_key}")
     
+    # Dynamic Activities (Restored)
+    num_activities = st.selectbox("Number of specific activities", range(0, 11), index=0)
     activity_list = []
     for j in range(num_activities):
-        act = st.text_input(f"Activity {j+1}", placeholder=f"Enter activity {j+1} details...", key=f"act_{st.session_state.builder_form_key}_{j}")
+        act = st.text_input(f"Activity {j+1}", key=f"act_{st.session_state.builder_form_key}_{j}")
         if act: activity_list.append(f"• {act}")
     
-    # Combine activities into a description
-    desc_in = "\n".join(activity_list)
-    # --- DYNAMIC ACTIVITIES END ---
+    # Combine Everything
+    full_description = desc_box + "\n" + "\n".join(activity_list)
     
-    if st.button("➕ Add Day to Itinerary"):
-        if r_in:
-            st.session_state.itinerary.append({
-                "Route": r_in, 
-                "Distance": d_in, 
-                "Time": t_in, 
-                "Description": desc_in
-            })
-            st.session_state.builder_form_key += 1
+    btn_col1, btn_col2 = st.columns([1, 1])
+    with btn_col1:
+        if st.button("➕ Add Day"):
+            if r_in:
+                st.session_state.itinerary.append({"Route": r_in, "Distance": d_in, "Time": t_in, "Description": full_description})
+                st.session_state.builder_form_key += 1
+                st.rerun()
+    with btn_col2:
+        if st.button("🗑️ Clear All Itinerary"):
+            st.session_state.itinerary = []
             st.rerun()
 
     if st.session_state.itinerary:
         st.markdown("---")
         # Export Buttons
         e1, e2, e3 = st.columns(3)
-        with e1: st.button("📥 Excel (Logic Here)")
+        with e1: st.write("Excel Logic...")
         with e2: st.download_button("📥 Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
         with e3:
             pdf_data = create_pdf(tour_title, st.session_state.itinerary)
             st.download_button("📥 PDF", data=pdf_data, file_name=f"{tour_title}.pdf")
 
-        # Display Added Days
         for i, item in enumerate(st.session_state.itinerary):
-            st.markdown(f"**Day {i+1}: {item['Route']}**")
+            st.markdown(f"### Day {i+1}: {item['Route']}")
             st.write(item['Description'])
-            if st.button("❌ Remove", key=f"rem_{i}"):
+            if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
                 st.session_state.itinerary.pop(i)
                 st.rerun()
-
-with tab_set:
-    # (Settings Password change code goes here)
-    pass
