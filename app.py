@@ -56,9 +56,6 @@ bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=25
 
 st.markdown(f"""
 <style>
-_toggle {{
-    display:none;
-}}
 [data-testid="stAppViewContainer"] {{
     background: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url("{bg_img}");
     background-size: cover;
@@ -135,7 +132,8 @@ def create_pdf(title, itinerary):
         pdf.multi_cell(0, 7, clean_for_pdf(day["Description"]))
         pdf.ln(4)
 
-    return pdf.output(dest="S").encode("latin-1")
+    # IMPORTANT: fpdf 2.x already returns bytes
+    return pdf.output(dest="S")
 
 def to_excel(df):
     output = BytesIO()
