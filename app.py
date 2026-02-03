@@ -13,21 +13,15 @@ st.set_page_config(page_title="Exclusive Holidays SL", page_icon="✈️", layou
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_user_db():
-    """Reads the username and password columns from your Google Sheet"""
-    # ttl=0 ensures we always get the most recent data from the sheet
     df = conn.read(ttl=0) 
     return dict(zip(df.username.astype(str), df.password.astype(str)))
 
 def add_user_to_db(new_u, new_p):
-    """Adds a new user to the Google Sheet permanently"""
-    # 1. Read existing data
     df = conn.read(ttl=0)
-    # 2. Prepare new row
     new_row = pd.DataFrame([{"username": str(new_u), "password": str(new_p)}])
-    # 3. Combine and Update
     updated_df = pd.concat([df, new_row], ignore_index=True)
     conn.update(data=updated_df)
-    st.cache_data.clear() # Clears app memory so the new login works immediately
+    st.cache_data.clear()
 
 # Initialize Session States
 if 'authenticated' not in st.session_state:
@@ -43,54 +37,77 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. Styling (Your original full CSS preserved)
+# 2. Global Styling
 st.markdown("""
     <style>
     header {visibility: hidden;}
-    .main .block-container {padding-top: 1rem; padding-bottom: 2rem;}
     .stApp {
-        background: linear-gradient(rgba(255,255,255,0.85), rgba(255,255,255,0.85)), 
-                    url("https://images.unsplash.com/photo-1528127269322-539801943592?q=80&w=2070&auto=format&fit=crop");
-        background-size: cover; background-attachment: fixed;
+        background: #f4f7f9; /* Light grey/blue background like the screenshot */
+        background-size: cover;
     }
     .main-container {
-        background-color: rgba(255, 255, 255, 0.95); padding: 25px; border-radius: 20px;
-        max-width: 900px; margin: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+        background-color: white; padding: 30px; border-radius: 15px;
+        max-width: 900px; margin: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     }
-    button, .stButton > button {
-        background-color: #0056b3 !important; border: 2px solid #0056b3 !important;
-        border-radius: 10px !important; height: 50px;
+    /* Sign In Button Style */
+    .stButton > button {
+        background-color: #6495ED !important; /* Soft blue like the screenshot */
+        color: white !important;
+        border: none !important;
+        border-radius: 5px !important;
+        height: 45px;
+        font-weight: 600 !important;
     }
-    button p { color: #FFFFFF !important; font-weight: 800 !important; font-size: 16px !important; }
     .itinerary-card {
         background-color: #ffffff; padding: 20px; border-radius: 15px; 
-        margin-bottom: 15px; border-left: 6px solid #0056b3; 
+        margin-bottom: 15px; border-left: 6px solid #6495ED; 
     }
-    @media (max-width: 768px) { .main-container { padding: 15px; } .logo-img { width: 180px !important; } }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIN LOGIC ---
+# --- LOGIN LOGIC (MintHRM Style) ---
 if not st.session_state.authenticated:
-    st.markdown('<div class="main-container" style="max-width:400px; margin-top:50px;">', unsafe_allow_html=True)
-    st.title("🔒 Login")
-    u_input = st.text_input("Username")
-    p_input = st.text_input("Password", type="password")
-    if st.button("Sign In", use_container_width=True):
-        try:
-            user_db = load_user_db()
-            if u_input in user_db and str(user_db[u_input]) == p_input:
-                st.session_state.authenticated = True
-                st.session_state.current_user = u_input
-                st.rerun()
-            else:
-                st.error("Invalid Username or Password")
-        except Exception as e:
-            st.error(f"Connection Error: Please ensure your Google Sheet is Shared as 'Editor'.")
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Centered Container for Login
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    
+    with col2:
+        st.write("") # Spacer
+        # Display Logo
+        logo_path = "logo.png"
+        logo_base64 = get_base64(logo_path)
+        if logo_base64:
+            st.markdown(f'<div style="text-align: center; margin-top: 60px;"><img src="data:image/png;base64,{logo_base64}" width="180"></div>', unsafe_allow_html=True)
+        
+        # Login Card
+        st.markdown("""
+            <div style="background-color: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); margin-top: 30px;">
+                <h2 style="text-align: center; color: #555; font-weight: 400; margin-bottom: 30px; font-size: 22px;">Sign in to your account</h2>
+            </div>
+        """, unsafe_allow_html=True)
+
+        # We place inputs over the visual card using a container
+        with st.container():
+            u_input = st.text_input("Username", placeholder="Username", label_visibility="collapsed")
+            p_input = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
+            
+            if st.button("Sign In", use_container_width=True):
+                try:
+                    user_db = load_user_db()
+                    if u_input in user_db and str(user_db[u_input]) == p_input:
+                        st.session_state.authenticated = True
+                        st.session_state.current_user = u_input
+                        st.rerun()
+                    else:
+                        st.error("Invalid Username or Password")
+                except:
+                    st.error("Connection error with database.")
+            
+            st.markdown('<p style="text-align: center; color: #6495ED; font-size: 14px; margin-top: 15px;">Unable to sign in?</p>', unsafe_allow_html=True)
+            
+        st.markdown('<p style="text-align: center; color: #888; font-size: 13px; margin-top: 40px;">Exclusive Holidays Itinerary Portal</p>', unsafe_allow_html=True)
     st.stop()
 
-# --- ADMIN SIDEBAR ---
+# --- ADMIN SIDEBAR (Visible after login) ---
 with st.sidebar:
     st.write(f"👤 User: **{st.session_state.current_user}**")
     if st.button("Logout", use_container_width=True):
@@ -100,104 +117,56 @@ with st.sidebar:
     if st.session_state.current_user == "admin01":
         st.divider()
         st.subheader("🛠️ Admin Panel")
-        new_u = st.text_input("New Username")
-        new_p = st.text_input("New Password")
-        if st.button("Create Permanent User", use_container_width=True):
-            if new_u and new_p:
-                try:
+        with st.expander("➕ Add New User"):
+            new_u = st.text_input("New Username")
+            new_p = st.text_input("New Password")
+            if st.button("Save to Sheet"):
+                if new_u and new_p:
                     add_user_to_db(new_u, new_p)
-                    st.success(f"User '{new_u}' added!")
-                except Exception as e:
-                    st.error("Could not write to Sheet. Check 'Editor' permissions.")
-            else:
-                st.error("Fill both fields")
+                    st.success(f"Added {new_u}!")
+                    st.rerun()
+        
+        with st.expander("🗑️ Delete User"):
+            df_users = conn.read(ttl=0)
+            other_users = df_users[df_users['username'] != 'admin01']['username'].tolist()
+            if other_users:
+                user_to_delete = st.selectbox("Select user", options=other_users)
+                if st.button("Confirm Delete", type="primary"):
+                    updated_df = df_users[df_users['username'] != user_to_delete]
+                    conn.update(data=updated_df)
+                    st.cache_data.clear()
+                    st.rerun()
 
-# --- ORIGINAL ITINERARY LOGIC ---
+# --- MAIN APP INTERFACE ---
+st.markdown('<div class="main-container">', unsafe_allow_html=True)
+st.title("✈️ Itinerary Builder")
+
 if 'itinerary' not in st.session_state:
     st.session_state.itinerary = []
 if 'tour_title' not in st.session_state:
     st.session_state.tour_title = ""
 
-def add_day_callback():
-    if st.session_state.route_input:
-        activities_list = []
-        for i in range(st.session_state.num_act_selector):
-            act_key = f"act_input_{i}"
-            if act_key in st.session_state:
-                activities_list.append(st.session_state[act_key])
-        all_activities = ", ".join([a for a in activities_list if a.strip()])
-        st.session_state.itinerary.append({
-            "Route": st.session_state.route_input, "Distance": st.session_state.dist_input, 
-            "Time": st.session_state.tm_input, "Activities": all_activities, 
-            "Description": st.session_state.desc_input
-        })
-        st.session_state.route_input = ""; st.session_state.dist_input = ""
-        st.session_state.tm_input = ""; st.session_state.desc_input = ""
-
-logo_path = "logo.png"
-logo_base64 = get_base64(logo_path)
-if logo_base64:
-    st.markdown(f'<div style="text-align: center; padding: 20px 0;"><img class="logo-img" src="data:image/png;base64,{logo_base64}" style="width: 250px; opacity: 0.7;"></div>', unsafe_allow_html=True)
-
-st.markdown('<div class="main-container">', unsafe_allow_html=True)
-st.title("✈️ Exclusive Holidays SL")
-
-if st.session_state.itinerary:
-    total_days = len(st.session_state.itinerary)
-    st.info(f"📅 Current Plan: {total_days} Days / {total_days - 1 if total_days > 0 else 0} Nights")
-
-st.markdown("### 📝 Build Your Journey")
-st.session_state.tour_title = st.text_input("📍 Tour Title / Client Name", value=st.session_state.tour_title, placeholder="e.g. Johnson Family")
+# Input Section
+st.session_state.tour_title = st.text_input("📍 Tour Title", value=st.session_state.tour_title)
 
 c1, c2, c3 = st.columns([2, 1, 1])
-c1.text_input("Route", placeholder="Airport to Negombo", key="route_input")
-c2.text_input("Distance", placeholder="32 KM", key="dist_input")
-c3.text_input("Time", placeholder="30 mins", key="tm_input")
+route = c1.text_input("Route")
+dist = c2.text_input("Distance")
+tm = c3.text_input("Time")
+desc = st.text_area("Description")
 
-num_activities = st.selectbox("Number of activities for this day", options=[1, 2, 3, 4, 5, 6], key="num_act_selector")
-for i in range(num_activities):
-    st.text_input(f"Activity {i+1}", key=f"act_input_{i}", placeholder=f"Activity {i+1} details...")
+if st.button("➕ Add Day"):
+    if route:
+        st.session_state.itinerary.append({"Route": route, "Distance": dist, "Time": tm, "Description": desc})
+        st.rerun()
 
-st.text_area("Place Description", key="desc_input", placeholder="Describe the destination...")
-st.button("➕ Add Day to Tour", use_container_width=True, on_click=add_day_callback)
-
-if st.session_state.itinerary:
-    st.divider()
-    st.markdown("### 📥 Download Documents")
-    display_title = st.session_state.tour_title if st.session_state.tour_title else "Itinerary"
-    
-    def create_word(data, title):
-        doc = Document()
-        doc.add_heading(title, 0) 
-        for i, item in enumerate(data):
-            doc.add_heading(f"Day {i+1}: {item['Route']}", level=1)
-            doc.add_paragraph(f"Distance: {item['Distance']} | Time: {item['Time']}")
-            doc.add_paragraph(f"Activities: {item['Activities']}")
-            doc.add_paragraph(item['Description'])
-        word_out = BytesIO()
-        doc.save(word_out)
-        return word_out.getvalue()
-    
-    col_dl1, col_dl2 = st.columns(2)
-    with col_dl1:
-        st.download_button("📝 Word Document", data=create_word(st.session_state.itinerary, display_title), file_name=f"{display_title}.docx", use_container_width=True)
-    with col_dl2:
-        df = pd.DataFrame(st.session_state.itinerary)
-        df.insert(0, 'Day', range(1, 1 + len(df)))
-        excel_out = BytesIO()
-        with pd.ExcelWriter(excel_out, engine='xlsxwriter') as writer:
-            df.to_excel(writer, index=False, sheet_name="Itinerary") 
-        st.download_button("📊 Excel Sheet", data=excel_out.getvalue(), file_name=f"{display_title}.xlsx", use_container_width=True)
-
-st.divider()
+# Preview & Export
 for i, item in enumerate(st.session_state.itinerary):
-    with st.container():
-        st.markdown(f'<div class="itinerary-card"><h3 style="margin:0; color: #0056b3;">Day {i+1}: {item["Route"]}</h3><p><b>📏 {item["Distance"]} | ⏱️ {item["Time"]}</b></p><p><b>✨ Activities:</b> {item["Activities"]}</p><p>{item["Description"]}</p></div>', unsafe_allow_html=True)
-        if st.button("❌ Remove Day", key=f"del_{i}", use_container_width=True):
-            st.session_state.itinerary.pop(i); st.rerun()
+    st.markdown(f'<div class="itinerary-card"><b>Day {i+1}: {item["Route"]}</b><br>{item["Description"]}</div>', unsafe_allow_html=True)
 
 if st.session_state.itinerary:
-    if st.button("🗑️ Reset All Data", key="global_reset", use_container_width=True):
-        st.session_state.itinerary = []; st.session_state.tour_title = ""; st.rerun()
+    if st.button("🗑️ Reset All"):
+        st.session_state.itinerary = []
+        st.rerun()
 
 st.markdown('</div>', unsafe_allow_html=True)
