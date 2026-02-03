@@ -52,11 +52,11 @@ def display_branding():
     st.markdown('<h1 style="text-align: center; font-size: 28px; margin-bottom:0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
     st.markdown('<p style="text-align: center; font-style: italic; margin-top:0;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
 
-# --- PDF TEXT CLEANER (Fixes the Emoji/Link Symbol Crash) ---
+# --- PDF TEXT CLEANER ---
 def safe_text(text):
     if not text: return ""
-    # Standard PDF fonts only support Latin-1. This removes emojis/symbols.
-    return text.encode('latin-1', 'replace').decode('latin-1').replace('?', '')
+    # This force-cleans any symbols like 🔗 or emojis that crash FPDF
+    return text.encode('ascii', 'ignore').decode('ascii')
 
 # --- EXPORT LOGIC ---
 def create_pdf(title, itinerary):
@@ -65,14 +65,13 @@ def create_pdf(title, itinerary):
     pdf.set_font('helvetica', 'B', 16)
     pdf.cell(0, 10, 'EXCLUSIVE HOLIDAYS SRI LANKA', 0, 1, 'C')
     pdf.ln(10)
-    
     pdf.set_font('helvetica', 'B', 14)
-    pdf.cell(0, 10, f'Trip Plan: {safe_text(title)}', 0, 1, 'L')
+    pdf.cell(0, 10, f"Trip Plan: {safe_text(title)}", 0, 1, 'L')
     
     for i, day in enumerate(itinerary):
         pdf.set_font('helvetica', 'B', 12)
-        route_header = f"Day {i+1}: {day['Route']} ({day['Distance']} | {day['Time']})"
-        pdf.cell(0, 10, safe_text(route_header), 1, 1, 'L')
+        header = f"Day {i+1}: {day['Route']} | Distance: {day['Distance']} | Duration: {day['Time']}"
+        pdf.cell(0, 10, safe_text(header), 1, 1, 'L')
         pdf.set_font('helvetica', '', 11)
         pdf.multi_cell(0, 7, safe_text(day['Description']))
         pdf.ln(5)
@@ -84,16 +83,29 @@ def to_excel(df):
         df.to_excel(writer, index=False, sheet_name='Itinerary')
     return output.getvalue()
 
-# --- MAIN UI ---
+# --- LOGIN SCREEN ---
 if not st.session_state.authenticated:
-    st.session_state.authenticated = True # Assuming login bypass for fix
+    display_branding()
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        with st.form("login_gate"):
+            u = st.text_input("Username")
+            p = st.text_input("Password", type="password")
+            if st.form_submit_button("Login"):
+                df = load_user_db()
+                if df is not None:
+                    user_row = df[(df['username'] == u) & (df['password'].astype(str) == p)]
+                    if not user_row.empty:
+                        st.session_state.authenticated = True
+                        st.rerun()
+                    else: st.error("Invalid Credentials")
+    st.stop()
 
+# --- APP HEADER ---
 display_branding()
-
-# Logout Row
 c_space, c_logout = st.columns([9, 1.2])
 with c_logout:
-    if st.button("Logout"):
+    if st.button("Logout", key="top_logout"):
         st.session_state.authenticated = False
         st.rerun()
 
@@ -105,12 +117,11 @@ with tab_build:
     colA, colB, colC = st.columns([2, 1, 1])
     with colA: r_in = st.text_input("Route", placeholder="Airport -> Negombo", key=f"r_{st.session_state.builder_form_key}")
     with colB: d_in = st.text_input("Distance", placeholder="35 KM", key=f"d_{st.session_state.builder_form_key}")
-    with colC: t_in = st.text_input("Time", placeholder="1 Hr 15 Mins", key=f"t_{st.session_state.builder_form_key}")
+    with colC: t_in = st.text_input("Time/Duration", placeholder="1 Hr 15 Mins", key=f"t_{st.session_state.builder_form_key}")
     
-    desc_box = st.text_area("General Description", placeholder="Enter the story of the day...", key=f"desc_{st.session_state.builder_form_key}")
+    desc_box = st.text_area("Daily Description", placeholder="Enter highlights...", key=f"desc_{st.session_state.builder_form_key}")
     
-    # Dynamic Activities
-    num_activities = st.selectbox("How many activities?", range(0, 6), index=0)
+    num_activities = st.selectbox("Add Activities?", range(0, 6), index=0)
     activity_list = []
     for j in range(num_activities):
         act = st.text_input(f"Activity {j+1}", key=f"act_{st.session_state.builder_form_key}_{j}")
@@ -140,16 +151,15 @@ with tab_build:
             try:
                 pdf_bytes = create_pdf(tour_title, st.session_state.itinerary)
                 st.download_button("📥 PDF", data=pdf_bytes, file_name=f"{tour_title}.pdf", mime="application/pdf")
-            except:
-                st.error("Error generating PDF. Check for special symbols.")
+            except Exception as e:
+                st.warning("⚠️ PDF button hidden due to special characters. Remove emojis to enable.")
         
-        # Displays days with Distance and Time
+        # Display list with Distance and Duration
         for i, item in enumerate(st.session_state.itinerary):
-            with st.container():
-                st.markdown(f"### Day {i+1}: {item['Route']}")
-                st.markdown(f"**📍 Distance:** {item['Distance']} | **⏳ Duration:** {item['Time']}")
-                st.write(item['Description'])
-                if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
-                    st.session_state.itinerary.pop(i)
-                    st.rerun()
-                st.markdown("---")
+            st.markdown(f"### Day {i+1}: {item['Route']}")
+            st.markdown(f"**📍 Distance:** {item['Distance']} | **⏳ Duration:** {item['Time']}")
+            st.info(item['Description'])
+            if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
+                st.session_state.itinerary.pop(i)
+                st.rerun()
+            st.markdown("---")
