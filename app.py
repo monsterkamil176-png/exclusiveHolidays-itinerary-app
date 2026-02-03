@@ -49,12 +49,13 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. THE CSS FIX: Remove rounded ghost boxes and set background
+# 2. THE TARGETED CSS FIX
+# This uses the beach sunset background and kills the white ghost boxes
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
 
 st.markdown(f"""
     <style>
-    /* Set the main background image */
+    /* Set Background */
     [data-testid="stAppViewContainer"] {{
         background: linear-gradient(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.2)), 
                     url("{bg_img}");
@@ -63,33 +64,27 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* TARGETED FIX: Make the ghost boxes (containers) transparent */
-    [data-testid="stVerticalBlock"] > div {{
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+    /* REMOVE GHOST BOX: This targets the empty Streamlit block containers */
+    [data-testid="stVerticalBlock"] > div:has(div:empty) {{
+        display: none !important;
     }}
     
-    /* Remove default white header bar and decoration */
+    [data-testid="stVerticalBlock"] > div {{
+        background-color: transparent !important;
+    }}
+
+    /* Clean up headers */
     [data-testid="stHeader"], [data-testid="stDecoration"] {{
         background-color: rgba(0,0,0,0) !important;
     }}
 
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
-
-    /* Keep your existing button style */
-    .stButton > button {{
-        background-color: #6495ED !important;
-        color: white !important;
-        border-radius: 8px !important;
-    }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIN ---
+# --- PHASE 1: LOGIN ---
 if not st.session_state.authenticated:
-    # Your default centering layout
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
         logo_base64 = get_base64("logo.png")
@@ -114,12 +109,12 @@ if not st.session_state.authenticated:
                         st.error("Invalid Credentials")
     st.stop()
 
-# --- PASSWORD CHANGE ---
+# --- PHASE 2: FORCE PASSWORD CHANGE ---
 if st.session_state.needs_password_change:
-    st.subheader("🔒 Update Password")
+    st.subheader("🔒 Update Your Password")
     with st.form("change_p"):
         new_p = st.text_input("New Password", type="password")
-        conf_p = st.text_input("Confirm Password", type="password")
+        conf_p = st.text_input("Confirm New Password", type="password")
         if st.form_submit_button("Save"):
             if new_p == conf_p and len(new_p) >= 4:
                 update_password_in_db(st.session_state.current_user, new_p)
@@ -127,7 +122,7 @@ if st.session_state.needs_password_change:
                 st.rerun()
     st.stop()
 
-# --- MAIN APP ---
+# --- PHASE 3: MAIN APP ---
 t_col1, t_col2 = st.columns([9, 1])
 with t_col2:
     if st.button("Logout"):
@@ -136,10 +131,16 @@ with t_col2:
 
 if st.session_state.current_user == "admin01":
     st.title("Admin Panel")
-    # ... your admin code ...
+    tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
+    with tab1:
+        new_u = st.text_input("New Username")
+        new_p = st.text_input("Temp Password", type="password")
+        if st.button("Register Account"):
+            if new_u and new_p:
+                add_user_to_db(new_u, new_p)
+                st.success("Account created.")
 else:
     st.title("Exclusive Holidays Itinerary Builder")
-    # ... your builder code ...
     tour_title = st.text_input("Tour Title / Client Name")
     
     c1, c2, c3 = st.columns([2, 1, 1])
@@ -155,4 +156,5 @@ else:
 
     if st.session_state.itinerary:
         for i, item in enumerate(st.session_state.itinerary):
-            st.write(f"Day {i+1}: {item['Route']}")
+            st.markdown(f"**Day {i+1}: {item['Route']}**")
+            st.write(item['Description'])
