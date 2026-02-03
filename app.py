@@ -49,12 +49,12 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. THE CSS FIX: Visible buttons and no ghost boxes
+# 2. THE CSS FIX: Restores text visibility and keeps ghost boxes hidden
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
 
 st.markdown(f"""
     <style>
-    /* Set the background image */
+    /* Background setup */
     [data-testid="stAppViewContainer"] {{
         background: linear-gradient(rgba(0, 0, 0, 0.3), rgba(0, 0, 0, 0.3)), 
                     url("{bg_img}");
@@ -63,37 +63,37 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* Remove the ghost box you circled */
+    /* Remove the white ghost boxes you circled */
     [data-testid="stVerticalBlock"] > div {{
         background-color: transparent !important;
         border: none !important;
         box-shadow: none !important;
     }}
     
-    /* BUTTON TEXT FIX: Make button text dark and bold */
+    /* Ensure Placeholder text (the example thingies) is visible */
+    ::placeholder {{
+        color: #666666 !important;
+        opacity: 1;
+    }}
+
+    /* Button Text: Dark and Bold */
     .stButton > button {{
         color: #1e1e1e !important;
         font-weight: 700 !important;
-        background-color: #f0f2f6 !important; /* Light grey button */
-        border: 1px solid #d1d1d1 !important;
+        background-color: #ffffff !important;
+        border-radius: 8px !important;
     }}
 
-    /* Input fields visibility */
-    .stTextInput input, .stTextArea textarea {{
-        background-color: white !important;
-        color: black !important;
-    }}
-
-    /* Main headings stay white for the background */
+    /* Main headings and labels: White with shadow for readability */
     h1, h2, h3, p, label {{
         color: white !important;
-        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
     }}
 
+    /* Streamlit UI cleanup */
     [data-testid="stHeader"], [data-testid="stDecoration"] {{
         background-color: rgba(0,0,0,0) !important;
     }}
-
     header {{visibility: hidden;}}
     footer {{visibility: hidden;}}
     </style>
@@ -103,17 +103,20 @@ st.markdown(f"""
 if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1.2, 1])
     with col2:
+        # 1. Logo
         logo_base64 = get_base64("logo.png")
         if logo_base64:
             st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="200"></div>', unsafe_allow_html=True)
         
-        st.markdown('<h2 style="text-align: center;">Welcome Back</h2>', unsafe_allow_html=True)
+        # 2. Company Name and Motto
+        st.markdown('<h1 style="text-align: center; margin-bottom: 0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align: center; font-style: italic; margin-top: 0;">"Your Motto Goes Here"</p>', unsafe_allow_html=True)
+        
+        st.markdown('<h2 style="text-align: center; margin-top: 20px;">Welcome Back</h2>', unsafe_allow_html=True)
         with st.form("login_form"):
-            u_input = st.text_input("Username")
-            p_input = st.text_input("Password", type="password")
-            submit = st.form_submit_button("Sign In")
-            
-            if submit:
+            u_input = st.text_input("Username", placeholder="Enter your username")
+            p_input = st.text_input("Password", type="password", placeholder="Enter your password")
+            if st.form_submit_button("Sign In"):
                 df = load_user_db()
                 if df is not None:
                     user_row = df[df['username'] == u_input]
@@ -131,18 +134,16 @@ if not st.session_state.authenticated:
 if st.session_state.needs_password_change:
     st.markdown("## 🔒 Security Update")
     with st.form("pw_form"):
-        new_p = st.text_input("New Password", type="password")
+        new_p = st.text_input("New Password", type="password", placeholder="Minimum 4 characters")
         conf_p = st.text_input("Confirm New Password", type="password")
         if st.form_submit_button("Update Password"):
             if new_p == conf_p and len(new_p) >= 4:
                 update_password_in_db(st.session_state.current_user, new_p)
                 st.session_state.needs_password_change = False
                 st.rerun()
-            else:
-                st.error("Passwords must match.")
     st.stop()
 
-# --- PHASE 3: MAIN APP CONTENT ---
+# --- PHASE 3: MAIN APP ---
 t_col1, t_col2 = st.columns([9, 1.2])
 with t_col2:
     if st.button("Logout"):
@@ -153,21 +154,22 @@ if st.session_state.current_user == "admin01":
     st.markdown("# 👨‍💼 Admin Panel")
     tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
     with tab1:
-        new_u = st.text_input("New Staff Username")
-        new_p = st.text_input("Temp Password", type="password")
+        new_u = st.text_input("New Staff Username", placeholder="e.g. kasun_01")
+        new_p = st.text_input("Temp Password", type="password", placeholder="e.g. Pass123")
         if st.button("Register Account"):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
-                st.success(f"Success! {new_u} added.")
+                st.success("Account Created!")
+
 else:
     st.markdown("# ✈️ Itinerary Builder")
-    tour_title = st.text_input("Tour Title / Client Name")
+    tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Mr. John Doe - 10 Days Sri Lanka")
     
     c1, c2, c3 = st.columns([2, 1, 1])
-    with c1: r_in = st.text_input("Route")
-    with c2: d_in = st.text_input("Distance")
-    with c3: t_in = st.text_input("Time")
-    desc_in = st.text_area("Description")
+    with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo")
+    with c2: d_in = st.text_input("Distance", placeholder="e.g. 30 KM")
+    with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hour")
+    desc_in = st.text_area("Description", placeholder="Describe the day's activities here...")
     
     if st.button("➕ Add Day"):
         if r_in:
@@ -178,7 +180,6 @@ else:
         st.markdown("---")
         for i, item in enumerate(st.session_state.itinerary):
             st.markdown(f"### Day {i+1}: {item['Route']}")
-            st.write(item['Description'])
             if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
                 st.session_state.itinerary.pop(i)
                 st.rerun()
