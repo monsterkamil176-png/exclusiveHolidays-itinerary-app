@@ -49,7 +49,7 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. THE CSS FIX: Restores text visibility and keeps ghost boxes hidden
+# 2. THE CSS FIX: Restores EVERYTHING and kills the ghost boxes
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
 
 st.markdown(f"""
@@ -63,34 +63,42 @@ st.markdown(f"""
         background-attachment: fixed;
     }}
 
-    /* Remove the white ghost boxes you circled */
-    [data-testid="stVerticalBlock"] > div {{
-        background-color: transparent !important;
-        border: none !important;
-        box-shadow: none !important;
+    /* FIX: This specifically targets that white ghost box without hiding your content */
+    div[data-testid="stVerticalBlock"] > div:has(> div:empty) {{
+        display: none !important;
     }}
     
-    /* Ensure Placeholder text (the example thingies) is visible */
+    [data-testid="stVerticalBlock"] {{
+        background-color: transparent !important;
+    }}
+
+    /* Input Field Styling & Placeholders */
+    .stTextInput input, .stTextArea textarea {{
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        color: #1e1e1e !important;
+    }}
+    
+    /* Make example text (placeholders) dark enough to see */
     ::placeholder {{
-        color: #666666 !important;
+        color: #555555 !important;
         opacity: 1;
     }}
 
-    /* Button Text: Dark and Bold */
+    /* Button Styling: Solid white with dark bold text */
     .stButton > button {{
-        color: #1e1e1e !important;
-        font-weight: 700 !important;
+        color: #000000 !important;
+        font-weight: 800 !important;
         background-color: #ffffff !important;
-        border-radius: 8px !important;
+        border: 2px solid #ffffff !important;
+        box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
     }}
 
-    /* Main headings and labels: White with shadow for readability */
+    /* Text Colors for Headings */
     h1, h2, h3, p, label {{
         color: white !important;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.7);
+        text-shadow: 2px 2px 8px rgba(0,0,0,0.8);
     }}
 
-    /* Streamlit UI cleanup */
     [data-testid="stHeader"], [data-testid="stDecoration"] {{
         background-color: rgba(0,0,0,0) !important;
     }}
@@ -101,21 +109,21 @@ st.markdown(f"""
 
 # --- PHASE 1: LOGIN ---
 if not st.session_state.authenticated:
-    col1, col2, col3 = st.columns([1, 1.2, 1])
+    col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
-        # 1. Logo
+        # LOGO RESTORED
         logo_base64 = get_base64("logo.png")
         if logo_base64:
-            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="200"></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="220"></div>', unsafe_allow_html=True)
         
-        # 2. Company Name and Motto
-        st.markdown('<h1 style="text-align: center; margin-bottom: 0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
-        st.markdown('<p style="text-align: center; font-style: italic; margin-top: 0;">"Your Motto Goes Here"</p>', unsafe_allow_html=True)
+        # COMPANY NAME & MOTTO RESTORED
+        st.markdown('<h1 style="text-align: center; font-size: 42px; margin-bottom: 0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
+        st.markdown('<p style="text-align: center; font-size: 18px; font-style: italic; margin-top: 0;">"Crafting Unforgettable Sri Lankan Journeys"</p>', unsafe_allow_html=True)
         
-        st.markdown('<h2 style="text-align: center; margin-top: 20px;">Welcome Back</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 style="text-align: center; margin-top: 30px;">Welcome Back</h2>', unsafe_allow_html=True)
         with st.form("login_form"):
-            u_input = st.text_input("Username", placeholder="Enter your username")
-            p_input = st.text_input("Password", type="password", placeholder="Enter your password")
+            u_input = st.text_input("Username", placeholder="Enter username here...")
+            p_input = st.text_input("Password", type="password", placeholder="Enter password here...")
             if st.form_submit_button("Sign In"):
                 df = load_user_db()
                 if df is not None:
@@ -134,7 +142,7 @@ if not st.session_state.authenticated:
 if st.session_state.needs_password_change:
     st.markdown("## 🔒 Security Update")
     with st.form("pw_form"):
-        new_p = st.text_input("New Password", type="password", placeholder="Minimum 4 characters")
+        new_p = st.text_input("New Password", type="password", placeholder="Min 4 characters")
         conf_p = st.text_input("Confirm New Password", type="password")
         if st.form_submit_button("Update Password"):
             if new_p == conf_p and len(new_p) >= 4:
@@ -144,7 +152,7 @@ if st.session_state.needs_password_change:
     st.stop()
 
 # --- PHASE 3: MAIN APP ---
-t_col1, t_col2 = st.columns([9, 1.2])
+t_col1, t_col2 = st.columns([8, 2])
 with t_col2:
     if st.button("Logout"):
         st.session_state.authenticated = False
@@ -152,15 +160,15 @@ with t_col2:
 
 if st.session_state.current_user == "admin01":
     st.markdown("# 👨‍💼 Admin Panel")
+    # Admin Tabs and logic...
     tab1, tab2 = st.tabs(["Add Staff", "Remove Staff"])
     with tab1:
-        new_u = st.text_input("New Staff Username", placeholder="e.g. kasun_01")
-        new_p = st.text_input("Temp Password", type="password", placeholder="e.g. Pass123")
+        new_u = st.text_input("New Staff Username", placeholder="e.g. tour_guide_01")
+        new_p = st.text_input("Temp Password", type="password")
         if st.button("Register Account"):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
                 st.success("Account Created!")
-
 else:
     st.markdown("# ✈️ Itinerary Builder")
     tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. Mr. John Doe - 10 Days Sri Lanka")
