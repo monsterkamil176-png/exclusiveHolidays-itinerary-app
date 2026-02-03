@@ -57,10 +57,16 @@ def display_branding():
     logo_base64 = get_base64("logo.png")
     if logo_base64:
         st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="80"></div>', unsafe_allow_html=True)
-    st.markdown('<h1 style="text-align: center; font-size: 28px;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
-    st.markdown('<p style="text-align: center; font-style: italic;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
+    st.markdown('<h1 style="text-align: center; font-size: 28px; margin-bottom:0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
+    st.markdown('<p style="text-align: center; font-style: italic; margin-top:0;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
 
 # --- EXPORTS ---
+def to_excel(df):
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Itinerary')
+    return output.getvalue()
+
 def to_word(title, itinerary):
     doc = Document()
     doc.add_heading(f'Itinerary: {title}', 0)
@@ -77,22 +83,36 @@ def create_pdf(title, itinerary):
     pdf.set_font('helvetica', 'B', 16)
     pdf.cell(0, 10, 'EXCLUSIVE HOLIDAYS SRI LANKA', 0, 1, 'C')
     pdf.ln(10)
+    
+    # Cleaning the title and description of non-latin characters to prevent crash
+    clean_title = title.encode('latin-1', 'replace').decode('latin-1')
     pdf.set_font('helvetica', 'B', 14)
-    pdf.cell(0, 10, f'Trip Plan: {title}', 0, 1, 'L')
+    pdf.cell(0, 10, f'Trip Plan: {clean_title}', 0, 1, 'L')
+    
     for i, day in enumerate(itinerary):
         pdf.set_font('helvetica', 'B', 12)
-        pdf.cell(0, 10, f'Day {i+1}: {day["Route"]}', 1, 1, 'L')
+        clean_route = day["Route"].encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(0, 10, f'Day {i+1}: {clean_route}', 1, 1, 'L')
+        
         pdf.set_font('helvetica', '', 11)
-        pdf.multi_cell(0, 7, day['Description'])
+        clean_desc = day['Description'].encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 7, clean_desc)
         pdf.ln(5)
     return pdf.output()
 
 # --- MAIN APP UI ---
 if not st.session_state.authenticated:
-    # (Your login logic is here)
-    st.session_state.authenticated = True # Bypass for this demo only
+    # (Put your login logic here - for now assuming authenticated)
+    st.session_state.authenticated = True 
 
 display_branding()
+
+# --- LOGOUT BUTTON (TOP RIGHT) ---
+col_main, col_logout = st.columns([9, 1])
+with col_logout:
+    if st.button("Logout"):
+        st.session_state.authenticated = False
+        st.rerun()
 
 tab_build, tab_set = st.tabs(["✈️ Itinerary Builder", "Settings ⚙️"])
 
@@ -104,17 +124,14 @@ with tab_build:
     with colB: d_in = st.text_input("Distance", placeholder="120 KM", key=f"d_{st.session_state.builder_form_key}")
     with colC: t_in = st.text_input("Time", placeholder="3 Hrs", key=f"t_{st.session_state.builder_form_key}")
     
-    # Description Field (Restored)
-    desc_box = st.text_area("General Description / Summary", placeholder="Enter the main highlights of the day...", key=f"desc_{st.session_state.builder_form_key}")
+    desc_box = st.text_area("General Description", placeholder="Enter highlights...", key=f"desc_{st.session_state.builder_form_key}")
     
-    # Dynamic Activities (Restored)
     num_activities = st.selectbox("Number of specific activities", range(0, 11), index=0)
     activity_list = []
     for j in range(num_activities):
         act = st.text_input(f"Activity {j+1}", key=f"act_{st.session_state.builder_form_key}_{j}")
         if act: activity_list.append(f"• {act}")
     
-    # Combine Everything
     full_description = desc_box + "\n" + "\n".join(activity_list)
     
     btn_col1, btn_col2 = st.columns([1, 1])
@@ -131,13 +148,19 @@ with tab_build:
 
     if st.session_state.itinerary:
         st.markdown("---")
-        # Export Buttons
+        # --- EXPORT BUTTONS ---
         e1, e2, e3 = st.columns(3)
-        with e1: st.write("Excel Logic...")
-        with e2: st.download_button("📥 Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
+        with e1:
+            df_export = pd.DataFrame(st.session_state.itinerary)
+            st.download_button("📥 Excel", data=to_excel(df_export), file_name=f"{tour_title}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        with e2:
+            st.download_button("📥 Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
         with e3:
-            pdf_data = create_pdf(tour_title, st.session_state.itinerary)
-            st.download_button("📥 PDF", data=pdf_data, file_name=f"{tour_title}.pdf")
+            try:
+                pdf_data = create_pdf(tour_title, st.session_state.itinerary)
+                st.download_button("📥 PDF", data=pdf_data, file_name=f"{tour_title}.pdf", mime="application/pdf")
+            except Exception as e:
+                st.error("Encoding error in PDF. Please remove any emojis or symbols.")
 
         for i, item in enumerate(st.session_state.itinerary):
             st.markdown(f"### Day {i+1}: {item['Route']}")
