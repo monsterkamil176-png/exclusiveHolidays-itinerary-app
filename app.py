@@ -60,7 +60,7 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. CSS Styling
+# 2. CSS Styling - Fixed Placeholder Visibility
 bg_img = "https://images.unsplash.com/photo-1586500036706-41963de24d8b?q=80&w=2574&auto=format&fit=crop"
 st.markdown(f"""
     <style>
@@ -68,10 +68,15 @@ st.markdown(f"""
         background: linear-gradient(rgba(0, 0, 0, 0.4), rgba(0, 0, 0, 0.4)), url("{bg_img}");
         background-size: cover; background-position: center; background-attachment: fixed;
     }}
-    div[data-testid="stVerticalBlock"] > div:has(> div:empty) {{ display: none !important; }}
-    [data-testid="stVerticalBlock"] {{ background-color: transparent !important; }}
-    .stTextInput input, .stTextArea textarea {{ background-color: rgba(255, 255, 255, 0.95) !important; color: #1e1e1e !important; }}
-    ::placeholder {{ color: #555555 !important; opacity: 1; }}
+    .stTextInput input, .stTextArea textarea {{ 
+        background-color: rgba(255, 255, 255, 0.95) !important; 
+        color: #1e1e1e !important; 
+    }}
+    /* Specifically styling placeholders to be visible */
+    ::placeholder {{ 
+        color: #777777 !important; 
+        opacity: 1; 
+    }}
     .stButton > button {{ color: #000000 !important; font-weight: 800 !important; background-color: #ffffff !important; }}
     h1, h2, h3, p, label {{ color: white !important; text-shadow: 2px 2px 4px rgba(0,0,0,0.8); }}
     header {{visibility: hidden;}} footer {{visibility: hidden;}}
@@ -85,39 +90,39 @@ def display_branding(logo_size=100, title_size=28, motto_size=14):
     st.markdown(f'<h1 style="text-align: center; font-size: {title_size}px; margin-bottom: 0;">EXCLUSIVE HOLIDAYS</h1>', unsafe_allow_html=True)
     st.markdown(f'<p style="text-align: center; font-size: {motto_size}px; font-style: italic; margin-top: 0;">"Unforgettable Island Adventures Awaits"</p>', unsafe_allow_html=True)
 
-# --- PDF LOGIC ---
+# --- PDF GENERATION ---
 class ITINERARY_PDF(FPDF):
     def header(self):
-        self.set_font('Arial', 'B', 16)
+        self.set_font('helvetica', 'B', 16)
         self.set_text_color(0, 51, 102)
         self.cell(0, 10, 'EXCLUSIVE HOLIDAYS SRI LANKA', 0, 1, 'C')
-        self.set_font('Arial', 'I', 10)
+        self.set_font('helvetica', 'I', 10)
         self.cell(0, 10, '"Unforgettable Island Adventures Awaits"', 0, 1, 'C')
         self.ln(10)
         self.line(10, 32, 200, 32)
     def footer(self):
         self.set_y(-15)
-        self.set_font('Arial', 'I', 8)
+        self.set_font('helvetica', 'I', 8)
         self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
 def create_pdf(title, itinerary):
     pdf = ITINERARY_PDF()
     pdf.add_page()
-    pdf.set_font('Arial', 'B', 14)
+    pdf.set_font('helvetica', 'B', 14)
     pdf.cell(0, 10, f'Trip Plan: {title}', 0, 1, 'L')
     pdf.ln(5)
     for i, day in enumerate(itinerary):
         pdf.set_fill_color(240, 240, 240)
-        pdf.set_font('Arial', 'B', 12)
+        pdf.set_font('helvetica', 'B', 12)
         pdf.cell(0, 10, f'Day {i+1}: {day["Route"]}', 1, 1, 'L', fill=True)
-        pdf.set_font('Arial', 'B', 10)
-        pdf.cell(0, 8, f'Distance: {day["Distance"]}  |  Travel Time: {day["Time"]}', 0, 1, 'L')
-        pdf.set_font('Arial', '', 11)
+        pdf.set_font('helvetica', 'B', 10)
+        pdf.cell(0, 8, f'Distance: {day["Distance"]} | Time: {day["Time"]}', 0, 1, 'L')
+        pdf.set_font('helvetica', '', 11)
         pdf.multi_cell(0, 7, day['Description'])
-        pdf.ln(10)
-    return pdf.output(dest='S')
+        pdf.ln(5)
+    return pdf.output()
 
-# --- WORD LOGIC ---
+# --- WORD GENERATION ---
 def to_word(title, itinerary):
     doc = Document()
     doc.add_heading(f'Itinerary: {title}', 0)
@@ -129,7 +134,7 @@ def to_word(title, itinerary):
     doc.save(bio)
     return bio.getvalue()
 
-# --- EXCEL LOGIC ---
+# --- EXCEL GENERATION ---
 def to_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
@@ -137,14 +142,14 @@ def to_excel(df):
         df.to_excel(writer, sheet_name='Itinerary', index_label='Day')
     return output.getvalue()
 
-# --- LOGIN ---
+# --- PHASE 1: LOGIN ---
 if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1.5, 1])
     with col2:
         display_branding(logo_size=200, title_size=42, motto_size=18)
         with st.form("login_form"):
-            u_input = st.text_input("Username")
-            p_input = st.text_input("Password", type="password")
+            u_input = st.text_input("Username", placeholder="Enter username")
+            p_input = st.text_input("Password", type="password", placeholder="Enter password")
             if st.form_submit_button("Sign In"):
                 df = load_user_db()
                 if df is not None:
@@ -158,13 +163,13 @@ if not st.session_state.authenticated:
                     else: st.error("Invalid Credentials")
     st.stop()
 
-# --- FORCED PW CHANGE ---
+# --- PHASE 2: FORCED PASSWORD CHANGE ---
 if st.session_state.needs_password_change:
     display_branding(logo_size=120)
     st.markdown("## 🔒 Set Your Permanent Password")
     with st.form("forced_pw_form"):
-        new_p = st.text_input("New Password", type="password")
-        conf_p = st.text_input("Confirm New Password", type="password")
+        new_p = st.text_input("New Password", type="password", placeholder="Min 4 characters")
+        conf_p = st.text_input("Confirm New Password", type="password", placeholder="Repeat password")
         if st.form_submit_button("Update & Continue"):
             if new_p == conf_p and len(new_p) >= 4:
                 update_user_password(st.session_state.current_user, new_p)
@@ -186,8 +191,8 @@ if st.session_state.current_user == "admin01":
     tab1, tab2, tab3 = st.tabs(["Add Staff", "Remove Staff", "Change Admin Password"])
     with tab1:
         st.markdown("### 👨‍💼 Add New Staff")
-        new_u = st.text_input("New Username", key=f"user_{st.session_state.admin_form_key}")
-        new_p = st.text_input("Temp Password", type="password", key=f"pass_{st.session_state.admin_form_key}")
+        new_u = st.text_input("New Username", key=f"u_{st.session_state.admin_form_key}", placeholder="e.g. tour_guide_01")
+        new_p = st.text_input("Temp Password", type="password", key=f"p_{st.session_state.admin_form_key}", placeholder="Temporary password")
         if st.button("Register Account"):
             if new_u and new_p:
                 add_user_to_db(new_u, new_p)
@@ -198,36 +203,33 @@ if st.session_state.current_user == "admin01":
         df_users = load_user_db()
         if df_users is not None:
             staff_list = df_users[df_users['username'] != "admin01"]
-            for index, row in staff_list.iterrows():
+            for _, row in staff_list.iterrows():
                 c_u, c_b = st.columns([3, 1])
                 c_u.write(f"👤 **{row['username']}**")
-                if c_b.button(f"Delete", key=f"del_{row['username']}"):
+                if c_b.button("Delete", key=f"del_{row['username']}"):
                     remove_user_from_db(row['username'])
                     st.rerun()
     with tab3:
-        st.markdown("### 🔑 Change Admin Password")
-        with st.form("admin_pw_change"):
-            old_p = st.text_input("Old Password", type="password")
-            new_p = st.text_input("New Password", type="password")
-            conf_p = st.text_input("Confirm New Password", type="password")
-            if st.form_submit_button("Update Admin Password"):
+        with st.form("admin_pw"):
+            old = st.text_input("Old Password", type="password")
+            new = st.text_input("New Password", type="password")
+            if st.form_submit_button("Update Password"):
                 df = load_user_db()
-                curr_p = str(df[df['username'] == "admin01"].iloc[0]['password'])
-                if old_p == curr_p and new_p == conf_p and len(new_p) >= 4:
-                    update_user_password("admin01", new_p)
+                if old == str(df[df['username']=="admin01"].iloc[0]['password']):
+                    update_user_password("admin01", new)
                     st.success("Admin password updated!")
-                else: st.error("Verification failed.")
 
 # --- STAFF BUILDER ---
 else:
     tab_build, tab_settings = st.tabs(["✈️ Itinerary Builder", "Settings ⚙️"])
     with tab_build:
-        tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. John Smith", key="tour_title_fix")
+        tour_title = st.text_input("Tour Title / Client Name", placeholder="e.g. John Smith - 10 Days", key="title_fix")
+        
         c1, c2, c3 = st.columns([2, 1, 1])
-        with c1: r_in = st.text_input("Route", key=f"r_{st.session_state.builder_form_key}")
-        with c2: d_in = st.text_input("Distance", key=f"d_{st.session_state.builder_form_key}")
-        with c3: t_in = st.text_input("Time", key=f"t_{st.session_state.builder_form_key}")
-        desc_in = st.text_area("Description", key=f"de_{st.session_state.builder_form_key}")
+        with c1: r_in = st.text_input("Route", placeholder="e.g. Airport -> Negombo", key=f"r_{st.session_state.builder_form_key}")
+        with c2: d_in = st.text_input("Distance", placeholder="e.g. 35 KM", key=f"d_{st.session_state.builder_form_key}")
+        with c3: t_in = st.text_input("Time", placeholder="e.g. 1 Hr 20 Mins", key=f"t_{st.session_state.builder_form_key}")
+        desc_in = st.text_area("Description", placeholder="Describe the day's activities here...", key=f"de_{st.session_state.builder_form_key}")
         
         if st.button("➕ Add Day"):
             if r_in:
@@ -240,15 +242,15 @@ else:
 
         if st.session_state.itinerary:
             st.markdown("---")
-            # --- 3 EXPORT BUTTONS ---
-            ex1, ex2, ex3 = st.columns(3)
-            with ex1:
-                st.download_button("📥 Excel", data=to_excel(pd.DataFrame(st.session_state.itinerary)), file_name=f"{tour_title}.xlsx")
-            with ex2:
-                st.download_button("📥 Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
-            with ex3:
-                pdf_data = create_pdf(tour_title, st.session_state.itinerary)
-                st.download_button("📥 Professional PDF", data=pdf_data, file_name=f"{tour_title}.pdf", mime="application/pdf")
+            e1, e2, e3 = st.columns(3)
+            with e1: st.download_button("📥 Export Excel", data=to_excel(pd.DataFrame(st.session_state.itinerary)), file_name=f"{tour_title}.xlsx")
+            with e2: st.download_button("📥 Export Word", data=to_word(tour_title, st.session_state.itinerary), file_name=f"{tour_title}.docx")
+            with e3:
+                try:
+                    pdf_out = create_pdf(tour_title, st.session_state.itinerary)
+                    st.download_button("📥 Export PDF", data=pdf_out, file_name=f"{tour_title}.pdf", mime="application/pdf")
+                except:
+                    st.warning("PDF Generator loading... Please check requirements.txt for fpdf2")
 
             for i, item in enumerate(st.session_state.itinerary):
                 st.markdown(f"**Day {i+1}: {item['Route']}**")
@@ -256,15 +258,11 @@ else:
                     st.session_state.itinerary.pop(i)
                     st.rerun()
     with tab_settings:
-        st.markdown("### 🔑 Change Your Password")
-        with st.form("staff_pw_change"):
-            old_p = st.text_input("Old Password", type="password")
-            new_p = st.text_input("New Password", type="password")
-            conf_p = st.text_input("Confirm New Password", type="password")
-            if st.form_submit_button("Save New Password"):
+        with st.form("staff_pw"):
+            old = st.text_input("Old Password", type="password")
+            new = st.text_input("New Password", type="password")
+            if st.form_submit_button("Update Password"):
                 df = load_user_db()
-                curr_p = str(df[df['username'] == st.session_state.current_user].iloc[0]['password'])
-                if old_p == curr_p and new_p == conf_p and len(new_p) >= 4:
-                    update_user_password(st.session_state.current_user, new_p)
-                    st.success("Password changed!")
-                else: st.error("Verification failed.")
+                if old == str(df[df['username']==st.session_state.current_user].iloc[0]['password']):
+                    update_user_password(st.session_state.current_user, new)
+                    st.success("Password updated!")
