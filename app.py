@@ -14,13 +14,12 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def load_user_db():
     try:
-        # Explicitly looking for "Sheet1" as seen in your screenshot
-        df = conn.read(spreadsheet=st.secrets["connections"]["gsheets"]["spreadsheet"], worksheet="Sheet1", ttl=0)
+        # worksheet="Sheet1" matches your screenshot tab name
+        df = conn.read(worksheet="Sheet1", ttl=0)
         if 'username' in df.columns and 'password' in df.columns:
             return dict(zip(df.username.astype(str), df.password.astype(str)))
-        else:
-            return None
-    except Exception as e:
+        return None
+    except:
         return None
 
 def add_user_to_db(new_u, new_p):
@@ -35,6 +34,8 @@ if 'authenticated' not in st.session_state:
     st.session_state.authenticated = False
 if 'current_user' not in st.session_state:
     st.session_state.current_user = None
+if 'itinerary' not in st.session_state:
+    st.session_state.itinerary = []
 
 # HELPER: Image to base64
 def get_base64(bin_file):
@@ -44,76 +45,71 @@ def get_base64(bin_file):
         return base64.b64encode(data).decode()
     return None
 
-# 2. Global Styling (Transparent Login)
+# 2. Global Styling (Beautiful & Branded)
 st.markdown("""
     <style>
     header {visibility: hidden;}
-    .stApp {
-        background: #f4f7f9; 
-    }
+    .stApp { background: #f4f7f9; }
+    
+    /* Main Content Card */
     .main-container {
-        background-color: white; padding: 30px; border-radius: 15px;
-        max-width: 900px; margin: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+        background-color: white; padding: 40px; border-radius: 15px;
+        max-width: 1000px; margin: auto; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
     }
-    /* Button Style */
+    
+    /* Custom Buttons */
     .stButton > button {
         background-color: #6495ED !important;
         color: white !important;
         border: none !important;
-        border-radius: 5px !important;
-        height: 45px;
+        border-radius: 8px !important;
+        height: 48px;
         font-weight: 600 !important;
     }
+    
     /* Itinerary Cards */
     .itinerary-card {
-        background-color: #ffffff; padding: 20px; border-radius: 15px; 
-        margin-bottom: 15px; border-left: 6px solid #6495ED; 
+        background-color: #f8f9fa; padding: 25px; border-radius: 12px; 
+        margin-bottom: 20px; border-left: 8px solid #6495ED; 
+    }
+    
+    /* Text Inputs */
+    .stTextInput > div > div > input, .stTextArea > div > div > textarea {
+        border-radius: 8px !important;
+        border: 1px solid #e0e0e0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LOGIN LOGIC (Transparent & Clean) ---
+# --- LOGIN LOGIC ---
 if not st.session_state.authenticated:
     col1, col2, col3 = st.columns([1, 1.2, 1])
-    
     with col2:
         logo_path = "logo.png"
         logo_base64 = get_base64(logo_path)
         if logo_base64:
-            st.markdown(f'<div style="text-align: center; margin-top: 80px; margin-bottom: 20px;"><img src="data:image/png;base64,{logo_base64}" width="180"></div>', unsafe_allow_html=True)
+            st.markdown(f'<div style="text-align: center; margin-top: 80px;"><img src="data:image/png;base64,{logo_base64}" width="200"></div>', unsafe_allow_html=True)
         
-        st.markdown('<h2 style="text-align: center; color: #555; font-weight: 400; margin-bottom: 25px; font-size: 22px;">Sign in to your account</h2>', unsafe_allow_html=True)
+        st.markdown('<h2 style="text-align: center; color: #444; font-weight: 500; margin-top: 20px;">Sign in to your account</h2>', unsafe_allow_html=True)
 
         u_input = st.text_input("Username", placeholder="Username", label_visibility="collapsed")
         p_input = st.text_input("Password", type="password", placeholder="Password", label_visibility="collapsed")
         
         if st.button("Sign In", use_container_width=True):
             user_db = load_user_db()
-            if user_db is not None:
-                if u_input in user_db and str(user_db[u_input]) == p_input:
-                    st.session_state.authenticated = True
-                    st.session_state.current_user = u_input
-                    st.rerun()
-                else:
-                    st.error("Invalid Username or Password")
+            if user_db and u_input in user_db and str(user_db[u_input]) == p_input:
+                st.session_state.authenticated = True
+                st.session_state.current_user = u_input
+                st.rerun()
             else:
-                st.error("Connection error with database. Check your Secrets.")
+                st.error("Access Denied: Invalid Credentials")
         
-        st.markdown('''
-            <div style="text-align: center; margin-top: 20px;">
-                <a href="mailto:monsterkamil176@gmail.com" 
-                    style="color: #6495ED; text-decoration: none; font-size: 14px; font-family: sans-serif; font-weight: 500;">
-                    Unable to sign in?
-                </a>
-            </div>
-        ''', unsafe_allow_html=True)
-            
-        st.markdown('<p style="text-align: center; color: #888; font-size: 13px; margin-top: 50px;">Exclusive Holidays Itinerary Portal</p>', unsafe_allow_html=True)
+        st.markdown(f'<div style="text-align: center; margin-top: 20px;"><a href="mailto:monsterkamil176@gmail.com" style="color: #6495ED; text-decoration: none; font-size: 14px;">Unable to sign in?</a></div>', unsafe_allow_html=True)
     st.stop()
 
-# --- THE REST OF YOUR APP (Admin & Itinerary) ---
+# --- INTERNAL INTERFACE ---
 with st.sidebar:
-    st.write(f"👤 User: **{st.session_state.current_user}**")
+    st.markdown(f"### 👤 {st.session_state.current_user}")
     if st.button("Logout", use_container_width=True):
         st.session_state.authenticated = False
         st.rerun()
@@ -121,69 +117,73 @@ with st.sidebar:
     if st.session_state.current_user == "admin01":
         st.divider()
         st.subheader("🛠️ Admin Panel")
-        with st.expander("➕ Add New User"):
-            new_u = st.text_input("New Username")
-            new_p = st.text_input("New Password")
-            if st.button("Save to Sheet"):
-                if new_u and new_p:
-                    add_user_to_db(new_u, new_p)
-                    st.success(f"Added {new_u}!")
+        with st.expander("➕ Add Staff"):
+            n_u = st.text_input("New Username")
+            n_p = st.text_input("New Password")
+            if st.button("Save Staff"):
+                add_user_to_db(n_u, n_p)
+                st.success("User Added")
+                st.rerun()
+        with st.expander("🗑️ Remove Staff"):
+            df_u = conn.read(worksheet="Sheet1", ttl=0)
+            others = df_u[df_u['username'] != 'admin01']['username'].tolist()
+            if others:
+                u_del = st.selectbox("Select Staff", options=others)
+                if st.button("Delete Forever", type="primary"):
+                    up_df = df_u[df_u['username'] != u_del]
+                    conn.update(worksheet="Sheet1", data=up_df)
+                    st.cache_data.clear()
                     st.rerun()
-        
-        with st.expander("🗑️ Delete User"):
-            try:
-                df_users = conn.read(worksheet="Sheet1", ttl=0)
-                other_users = df_users[df_users['username'] != 'admin01']['username'].tolist()
-                if other_users:
-                    u_to_del = st.selectbox("Select user", options=other_users)
-                    if st.button("Confirm Delete", type="primary"):
-                        updated_df = df_users[df_users['username'] != u_to_del]
-                        conn.update(worksheet="Sheet1", data=updated_df)
-                        st.cache_data.clear()
-                        st.rerun()
-            except:
-                st.write("No users found.")
 
+# --- MAIN CONTENT AREA ---
 st.markdown('<div class="main-container">', unsafe_allow_html=True)
-st.title("✈️ Itinerary Builder")
 
-if 'itinerary' not in st.session_state:
-    st.session_state.itinerary = []
-if 'tour_title' not in st.session_state:
-    st.session_state.tour_title = ""
+# Logo and Company Header (Restoring Branding)
+logo_path = "logo.png"
+logo_base64 = get_base64(logo_path)
+if logo_base64:
+    st.markdown(f'<div style="text-align: center;"><img src="data:image/png;base64,{logo_base64}" width="180" style="margin-bottom: 10px;"></div>', unsafe_allow_html=True)
 
-st.session_state.tour_title = st.text_input("📍 Tour Title", value=st.session_state.tour_title)
+st.markdown('<h1 style="text-align: center; color: #333;">Exclusive Holidays Itinerary Builder</h1>', unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
-# Input Section
-with st.container():
-    c1, c2, c3 = st.columns([2, 1, 1])
-    route_in = c1.text_input("Route", key="r_in")
-    dist_in = c2.text_input("Distance", key="d_in")
-    time_in = c3.text_input("Time", key="t_in")
-    desc_in = st.text_area("Description", key="desc_in")
+# Input Section (Styled like image_aae422.png)
+st.markdown("### 📝 Create New Journey")
+tour_title = st.text_input("📍 Tour Title / Client Name", placeholder="e.g. 10 Days Luxury Tour - Mr. Smith")
 
-    if st.button("➕ Add Day to Itinerary", use_container_width=True):
-        if route_in:
-            st.session_state.itinerary.append({
-                "Route": route_in, "Distance": dist_in, 
-                "Time": time_in, "Description": desc_in
-            })
-            st.rerun()
+c1, c2, c3 = st.columns([2, 1, 1])
+with c1: r_in = st.text_input("Route", placeholder="Airport to Negombo")
+with c2: d_in = st.text_input("Distance", placeholder="35 KM")
+with c3: t_in = st.text_input("Time", placeholder="45 Mins")
 
-# Preview
-for i, item in enumerate(st.session_state.itinerary):
-    st.markdown(f'''
-        <div class="itinerary-card">
-            <b>Day {i+1}: {item["Route"]}</b> ({item["Distance"]} - {item["Time"]})<br>
-            {item["Description"]}
-        </div>
-    ''', unsafe_allow_html=True)
-    if st.button(f"Remove Day {i+1}", key=f"rem_{i}"):
-        st.session_state.itinerary.pop(i)
+desc_in = st.text_area("Description", placeholder="Describe the day's events and highlights...")
+
+if st.button("➕ Add Day to Itinerary", use_container_width=True):
+    if r_in:
+        st.session_state.itinerary.append({
+            "Route": r_in, "Distance": d_in, "Time": t_in, "Description": desc_in
+        })
         st.rerun()
 
+# Preview Area
 if st.session_state.itinerary:
-    if st.button("🗑️ Reset All", use_container_width=True):
+    st.markdown("---")
+    st.markdown("### 🗺️ Itinerary Preview")
+    for i, item in enumerate(st.session_state.itinerary):
+        st.markdown(f'''
+            <div class="itinerary-card">
+                <h4 style="margin:0; color: #6495ED;">Day {i+1}: {item["Route"]}</h4>
+                <p style="margin: 5px 0; font-weight: 600; font-size: 14px; color: #666;">
+                    📏 {item["Distance"]} | ⏱️ {item["Time"]}
+                </p>
+                <p style="margin-top: 10px; color: #444;">{item["Description"]}</p>
+            </div>
+        ''', unsafe_allow_html=True)
+        if st.button(f"🗑️ Remove Day {i+1}", key=f"rem_{i}"):
+            st.session_state.itinerary.pop(i)
+            st.rerun()
+
+    if st.button("🔴 Clear All Data", use_container_width=True):
         st.session_state.itinerary = []
         st.rerun()
 
