@@ -18,7 +18,7 @@ def load_user_db():
     try:
         return conn.read(worksheet="Sheet1", ttl=0)
     except:
-        return None
+        return pd.DataFrame(columns=["username", "password"])
 
 # ================= SESSION STATE =================
 if "authenticated" not in st.session_state:
@@ -40,7 +40,6 @@ def get_base64(path):
 def clean_for_pdf(text):
     """Aggressively removes any non-standard character to stop PDF crashes."""
     if not text: return ""
-    # Only allows standard letters, numbers, and basic punctuation
     return re.sub(r'[^a-zA-Z0-9\s\.,\-\(\):/]', '', str(text))
 
 def clean_filename(text):
@@ -113,13 +112,13 @@ if not st.session_state.authenticated:
             p = st.text_input("Password", type="password")
             if st.form_submit_button("Login"):
                 db = load_user_db()
-                if db is not None:
-                    user_row = db[(db["username"] == u) & (db["password"].astype(str) == p)]
-                    if not user_row.empty:
-                        st.session_state.authenticated = True
-                        st.session_state.user_role = "Admin" if u.lower() == "admin" else "Staff"
-                        st.rerun()
-                    else: st.error("Invalid credentials")
+                user_row = db[(db["username"] == u) & (db["password"].astype(str) == p)]
+                if not user_row.empty:
+                    st.session_state.authenticated = True
+                    # admin01 triggers the Admin Role
+                    st.session_state.user_role = "Admin" if u.lower() in ["admin", "admin01"] else "Staff"
+                    st.rerun()
+                else: st.error("Invalid credentials")
     st.stop()
 
 # ================= SHARED HEADER =================
@@ -135,16 +134,36 @@ with c_logout:
 
 # ================= ROLE BASED NAVIGATION =================
 if st.session_state.user_role == "Admin":
-    st.subheader("Admin Control Panel")
-    # Admin only sees Management, NOT the builder
-    with st.expander("User Management (Google Sheets Connection)", expanded=True):
-        st.info("Direct management is available via your Google Sheet. Refresh below to see current users.")
-        if st.button("Refresh User List"):
-            st.dataframe(load_user_db())
-else:
-    # Staff only sees the Builder
-    st.subheader("✈️ Itinerary Builder")
+    st.subheader("🛠️ Admin Panel: User Management")
     
+    # 1. ADD NEW USER SECTION
+    with st.container(border=True):
+        st.write("### Add New Staff User")
+        new_u = st.text_input("New Username", placeholder="e.g. staff_member")
+        new_p = st.text_input("New Password", type="password", placeholder="••••••••")
+        
+        if st.button("🚀 Register New User"):
+            if new_u and new_p:
+                current_db = load_user_db()
+                if new_u in current_db["username"].values:
+                    st.error("User already exists!")
+                else:
+                    new_row = pd.DataFrame([{"username": new_u, "password": new_p}])
+                    updated_db = pd.concat([current_db, new_row], ignore_index=True)
+                    conn.update(worksheet="Sheet1", data=updated_db)
+                    st.success(f"User {new_u} added successfully!")
+                    st.rerun()
+            else:
+                st.warning("Please fill in both fields.")
+
+    # 2. VIEW CURRENT USERS
+    st.write("---")
+    st.write("### Current Active Users")
+    st.dataframe(load_user_db(), use_container_width=True)
+
+else:
+    # STAFF / ITINERARY BUILDER
+    st.subheader("✈️ Itinerary Builder")
     it_name = st.text_input("Itinerary Name", placeholder="Relax on Beach – 10 Days")
     
     colA, colB, colC = st.columns([2, 1, 1])
@@ -171,21 +190,18 @@ else:
         st.markdown("---")
         safe_name = clean_filename(it_name)
         d1, d2, d3 = st.columns(3)
-        with d1:
-            st.download_button("📥 Excel", pd.DataFrame(st.session_state.itinerary).to_csv(index=False).encode('utf-8'), f"{safe_name}.csv")
-        with d2:
-            st.download_button("📥 Word", create_word(it_name, st.session_state.itinerary), f"{safe_name}.docx")
+        with d1: st.download_button("📥 Excel", pd.DataFrame(st.session_state.itinerary).to_csv(index=False).encode('utf-8'), f"{safe_name}.csv")
+        with d2: st.download_button("📥 Word", create_word(it_name, st.session_state.itinerary), f"{safe_name}.docx")
         with d3:
             try:
                 p_data = create_pdf(it_name, st.session_state.itinerary)
                 st.download_button("📥 PDF", p_data, f"{safe_name}.pdf", mime="application/pdf")
-            except Exception as e:
-                st.error(f"PDF Error: {e}")
+            except Exception as e: st.error(f"PDF Error: {e}")
 
         for i, d in enumerate(st.session_state.itinerary):
             with st.expander(f"Day {i+1}: {d['Route']}", expanded=True):
                 st.write(f"**{d['Distance']} | {d['Time']}**")
                 st.write(d['Description'])
-                if st.button("Remove", key=f"del_{i}"):
+                if st.button(f"Remove Day {i+1}", key=f"del_{i}"):
                     st.session_state.itinerary.pop(i)
                     st.rerun()
